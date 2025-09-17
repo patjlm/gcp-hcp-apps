@@ -1,0 +1,30 @@
+global:
+  environment: dev
+
+applications:
+  argocd:
+    version: "5.46.0"  # Latest for dev
+    values:
+      controller:
+        replicas: 1
+      server:
+        replicas: 1
+        service:
+          type: ClusterIP
+      repoServer:
+        replicas: 1
+
+  prometheus:
+    version: "77.9.1"  # Latest for testing
+    values:
+      grafana:
+        persistence:
+          enabled: false
+        service:
+          type: ClusterIP
+      prometheus:
+        prometheusSpec:
+          retention: "7d"  # Shorter retention for dev
+
+  certManager:
+    version: "v1.18.2"  # Latest for testing

@@ -1,0 +1,50 @@
+global:
+  destination:
+    server: https://kubernetes.default.svc
+  source:
+    repoURL: https://github.com/patjlm/gcp-hcp-apps.git
+    targetRevision: main
+  environment: dev
+
+applications:
+  argocd:
+    enabled: true
+    chart: argo-cd
+    repoURL: https://argoproj.github.io/argo-helm
+    version: "5.46.0"
+    namespace: argocd
+    values:
+      server:
+        service:
+          type: ClusterIP
+      controller:
+        replicas: 1
+      repoServer:
+        replicas: 1
+
+  prometheus:
+    enabled: true
+    chart: kube-prometheus-stack
+    repoURL: https://prometheus-community.github.io/helm-charts
+    version: "77.9.1"
+    namespace: monitoring
+    values:
+      grafana:
+        service:
+          type: ClusterIP
+
+  certManager:
+    enabled: true
+    chart: cert-manager
+    repoURL: oci://quay.io/jetstack/charts
+    version: "v1.18.2"
+    namespace: cert-manager
+    values:
+      crds:
+        enabled: true
+      prometheus:
+        enabled: true
+      webhook:
+        securePort: 10260
+      cainjector:
+        enabled: true

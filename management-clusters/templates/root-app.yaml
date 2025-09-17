@@ -1,0 +1,23 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root-management-cluster-apps
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: {{ .Values.global.source.repoURL }}
+    targetRevision: {{ .Values.global.source.targetRevision }}
+    path: management-clusters
+    helm:
+      valueFiles:
+        - values-{{ .Values.global.environment }}.yaml
+  destination:
+    server: {{ .Values.global.destination.server }}
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
