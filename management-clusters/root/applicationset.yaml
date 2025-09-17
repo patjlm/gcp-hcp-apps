@@ -10,8 +10,6 @@ spec:
       revision: HEAD
       directories:
       - path: management-clusters/*
-      - path: management-clusters/root
-        exclude: true
   template:
     metadata:
       name: '{{path.basename}}'
