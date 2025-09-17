@@ -1,0 +1,34 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: management-cluster-apps
+  namespace: argocd
+spec:
+  generators:
+  - git:
+      repoURL: https://github.com/patjlm/gcp-hcp-apps.git  # Replace with your actual git repo URL
+      revision: HEAD
+      directories:
+      - path: management-clusters/*
+        exclude: management-clusters/root
+  template:
+    metadata:
+      name: '{{path.basename}}'
+      namespace: argocd
+      finalizers:
+        - resources-finalizer.argocd.argoproj.io
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/patjlmgcp-hcp-apps.git  # Replace with your actual git repo URL
+        targetRevision: HEAD
+        path: '{{path}}'
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: argocd
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+        - CreateNamespace=true
