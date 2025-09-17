@@ -6,11 +6,12 @@ metadata:
 spec:
   generators:
   - git:
-      repoURL: https://github.com/patjlm/gcp-hcp-apps.git  # Replace with your actual git repo URL
+      repoURL: https://github.com/patjlm/gcp-hcp-apps.git
       revision: HEAD
       directories:
       - path: management-clusters/*
-        exclude: management-clusters/root
+      - path: management-clusters/root
+        exclude: true
   template:
     metadata:
       name: '{{path.basename}}'
@@ -20,7 +21,7 @@ spec:
     spec:
       project: default
       source:
-        repoURL: https://github.com/patjlmgcp-hcp-apps.git  # Replace with your actual git repo URL
+        repoURL: https://github.com/patjlm/gcp-hcp-apps.git
         targetRevision: HEAD
         path: '{{path}}'
       destination:
