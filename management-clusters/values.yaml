@@ -7,7 +7,7 @@ global:
 
 applications:
   argocd:
-    enabled: false  # Disabled by default - enabled via environment-specific values
+    enabled: true
     chart: argo-cd
     repoURL: https://argoproj.github.io/argo-helm
     version: "5.46.0"
@@ -22,7 +22,7 @@ applications:
         replicas: 1
 
   prometheus:
-    enabled: false  # Disabled by default - enabled via environment-specific values
+    enabled: true
     chart: kube-prometheus-stack
     repoURL: https://prometheus-community.github.io/helm-charts
     version: "77.9.1"
@@ -33,7 +33,7 @@ applications:
           type: ClusterIP
 
   certManager:
-    enabled: false  # Disabled by default - enabled via environment-specific values
+    enabled: true
     chart: cert-manager
     repoURL: oci://quay.io/jetstack/charts
     version: "v1.18.2"
