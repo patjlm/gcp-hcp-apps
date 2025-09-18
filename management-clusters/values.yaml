@@ -47,3 +47,10 @@ applications:
         securePort: 10260
       cainjector:
         enabled: true
+
+  hypershift:
+    enabled: true
+    repoURL: https://github.com/patjlm/gcp-hcp-apps.git
+    targetRevision: main
+    path: hypershift
+    namespace: hypershift

@@ -1,0 +1,27 @@
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: selfsigned-issuer
+spec:
+  selfSigned: {}
+
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: manager-serving-cert
+  namespace: hypershift
+spec:
+  secretName: manager-serving-cert
+  duration: 8760h # 365 days
+  commonName: hypershift-operator
+  dnsNames:
+  - hypershift-operator
+  - hypershift-operator.hypershift
+  - hypershift-operator.hypershift.svc
+  - hypershift-operator.hypershift.svc.cluster.local
+  issuerRef:
+    name: selfsigned-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io
