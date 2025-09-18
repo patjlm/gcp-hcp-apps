@@ -28,32 +28,35 @@ management-clusters/
 
 ## Usage
 
-### Initial Bootstrap (via Terraform)
+### Bootstrap Flow
 
-Deploy the root application that will manage all other applications:
+**Two-stage bootstrap process for clean GitOps handoff:**
 
-```hcl
-resource "kubernetes_manifest" "root_application" {
-  manifest = yamldecode(templatefile("${path.module}/root-app.yaml", {
-    environment = var.environment
-    git_repo    = "https://github.com/patjlm/gcp-hcp-apps.git"
-  }))
-}
-```
+**Stage 1: Terraform Bootstrap**
+- Creates ArgoCD namespace and operator
+- Creates cluster metadata ConfigMap
+- Deploys minimal root application (no valueFiles, no computed values)
+- All applications start `enabled: false` by default
 
-### Environment-Specific Deployments
+**Stage 2: ArgoCD Self-Configuration**
+- Root app looks up cluster metadata from ConfigMap
+- Dynamically includes environment-specific valueFiles (`values-dev.yaml`, etc.)
+- Injects cluster metadata (project_id, region, vpc_network_id, etc.) to all apps
+- Triggers deployment of all applications with correct configuration
 
-The Helm chart automatically selects the appropriate values file based on the environment:
+### Environment Detection
 
-- **Dev**: Uses `values-dev.yaml` (latest versions, minimal resources)
-- **Prod**: Uses `values-prod.yaml` (stable versions, HA configuration)
+The root application automatically determines the environment from the cluster metadata ConfigMap and loads the appropriate configuration:
+
+- **Dev**: `values-dev.yaml` (latest versions, minimal resources)
+- **Prod**: `values-prod.yaml` (stable versions, HA configuration)
 
 ### Self-Management Flow
 
-1. Make changes to application configurations in Git
-2. Root application detects repository changes automatically
-3. Root application updates itself and child applications
-4. ArgoCD syncs all changes to the cluster
+1. Terraform creates infrastructure and minimal root app
+2. ArgoCD syncs root app, which self-configures from cluster metadata
+3. All applications deploy with dynamic cluster values
+4. Future Git changes automatically sync via ArgoCD
 
 ## Adding New Applications
 

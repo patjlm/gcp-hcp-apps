@@ -12,10 +12,10 @@ spec:
     targetRevision: {{ .Values.global.source.targetRevision }}
     path: management-clusters
     helm:
+      {{- $cluster := (lookup "v1" "ConfigMap" "argocd" "cluster-metadata").data }}
       valueFiles:
-        - values-{{ .Values.global.environment }}.yaml
+        - values-{{ $cluster.environment }}.yaml
       values: |
-        {{- $cluster := (lookup "v1" "ConfigMap" "argocd" "cluster-metadata").data }}
         cluster:
         {{- range $key, $value := $cluster }}
           {{ $key }}: {{ $value }}
