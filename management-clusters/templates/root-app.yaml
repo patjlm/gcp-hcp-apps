@@ -14,6 +14,12 @@ spec:
     helm:
       valueFiles:
         - values-{{ .Values.global.environment }}.yaml
+      values: |
+        {{- $cluster := (lookup "v1" "ConfigMap" "argocd" "cluster-metadata").data }}
+        cluster:
+        {{- range $key, $value := $cluster }}
+          {{ $key }}: {{ $value }}
+        {{- end }}
   destination:
     server: {{ .Values.global.destination.server }}
     namespace: argocd
