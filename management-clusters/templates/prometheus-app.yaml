@@ -26,4 +26,17 @@ spec:
     syncOptions:
     - CreateNamespace=true
     - ServerSideApply=true
+  # Ignore differences in fields managed by other controllers
+  ignoreDifferences:
+  # caBundle is dynamically injected by cert-manager or webhook cert controllers
+  - group: admissionregistration.k8s.io
+    kind: MutatingWebhookConfiguration
+    name: prometheus-kube-prometheus-admission
+    jsonPointers:
+    - /webhooks/0/clientConfig/caBundle
+  - group: admissionregistration.k8s.io
+    kind: ValidatingWebhookConfiguration
+    name: prometheus-kube-prometheus-admission
+    jsonPointers:
+    - /webhooks/0/clientConfig/caBundle
 {{- end }}
