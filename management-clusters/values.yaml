@@ -35,7 +35,7 @@ applications:
   certManager:
     enabled: true
     chart: cert-manager
-    repoURL: oci://quay.io/jetstack/charts/cert-manager
+    repoURL: quay.io/jetstack/charts
     version: "v1.18.2"
     namespace: cert-manager
     values:
