@@ -4,7 +4,6 @@ global:
   source:
     repoURL: https://github.com/patjlm/gcp-hcp-apps.git
     targetRevision: main
-  environment: dev
 
 applications:
   argocd:

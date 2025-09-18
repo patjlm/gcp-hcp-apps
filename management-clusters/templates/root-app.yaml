@@ -1,5 +1,11 @@
 {{- $clusterConfigMap := (lookup "v1" "ConfigMap" "argocd" "cluster-metadata") }}
+{{- if not $clusterConfigMap }}
+{{- fail "ConfigMap cluster-metadata not found in argocd namespace" }}
+{{- end }}
 {{- $cluster := $clusterConfigMap.data }}
+{{- if not $cluster }}
+{{- fail "ConfigMap cluster-metadata has no data" }}
+{{- end }}
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
