@@ -1,3 +1,6 @@
+{{- $clusterConfigMap := (lookup "v1" "ConfigMap" "argocd" "cluster-metadata") }}
+{{- if $clusterConfigMap }}
+{{- $cluster := $clusterConfigMap.data }}
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -12,7 +15,6 @@ spec:
     targetRevision: {{ .Values.global.source.targetRevision }}
     path: management-clusters
     helm:
-      {{- $cluster := (lookup "v1" "ConfigMap" "argocd" "cluster-metadata").data }}
       valueFiles:
         - values-{{ $cluster.environment }}.yaml
       values: |
@@ -27,3 +29,4 @@ spec:
     automated:
       prune: true
       selfHeal: true
+{{- end }}
