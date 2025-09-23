@@ -1,0 +1,5 @@
+apiVersion: v2
+name: management-cluster-apps
+description: ArgoCD applications for management-cluster in production/prod-canary/us-east1
+version: 1.0.0
+type: application

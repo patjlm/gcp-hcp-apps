@@ -1,0 +1,58 @@
+applications:
+  prometheus:
+    project: default
+    namespace: argocd
+    finalizers:
+    - resources-finalizer.argocd.argoproj.io
+    syncPolicy:
+      automated:
+        prune: false
+        selfHeal: true
+      syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    destination:
+      name: '{{ .Values.cluster.name }}'
+      namespace: monitoring
+    source:
+      repoURL: https://prometheus-community.github.io/helm-charts
+      targetRevision: 77.9.1
+      chart: kube-prometheus-stack
+      helm:
+        valuesObject:
+          grafana:
+            service:
+              type: ClusterIP
+          cluster:
+            region: '{{ .Values.cluster.region }}'
+            projectId: '{{ .Values.cluster.projectId }}'
+            vpcId: '{{ .Values.cluster.vpcId }}'
+  cert-manager:
+    project: default
+    namespace: argocd
+    finalizers:
+    - resources-finalizer.argocd.argoproj.io
+    syncPolicy:
+      automated:
+        prune: false
+        selfHeal: true
+      syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    destination:
+      name: '{{ .Values.cluster.name }}'
+      namespace: cert-manager
+    source:
+      repoURL: https://charts.jetstack.io
+      targetRevision: v1.18.2
+      chart: cert-manager
+      helm:
+        valuesObject:
+          crds:
+            enabled: true
+          prometheus:
+            enabled: true
+          webhook:
+            securePort: 10260
+          cainjector:
+            enabled: true
