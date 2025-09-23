@@ -8,6 +8,7 @@ Simple GitOps fleet generator.
 Generates ArgoCD applications for multi-dimensional deployment hierarchies.
 """
 
+import os
 import shutil
 import subprocess
 import tempfile
@@ -69,9 +70,11 @@ def discover_targets(config: Dict[str, Any]) -> List[Target]:
     """Discover all dimensional combinations from config."""
 
     def traverse_dimensions(
-        sequence_data: Any, current_path: List[str] = []
+        sequence_data: Any, current_path: List[str] = None
     ) -> List[Target]:
         """Recursively traverse dimensional hierarchy."""
+        if current_path is None:
+            current_path = []
         targets: List[Target] = []
 
         if isinstance(sequence_data, list):
@@ -107,7 +110,7 @@ def discover_targets(config: Dict[str, Any]) -> List[Target]:
 
 def find_applications(cluster_type: str) -> List[str]:
     """Find all applications for a cluster type."""
-    config_dir = Path(f"config/{cluster_type}")
+    config_dir = Path("config") / cluster_type
     apps: List[str] = []
 
     if not config_dir.exists():
@@ -125,7 +128,7 @@ def merge_application_values(
     cluster_type: str, app_name: str, target: Target
 ) -> Dict[str, Any]:
     """Merge application values for a specific target."""
-    base_path = Path(f"config/{cluster_type}")
+    base_path = Path("config") / cluster_type
     merged: Dict[str, Any] = {}
 
     # 1. Load application defaults
@@ -165,7 +168,7 @@ def render_target(cluster_type: str, target: Target) -> None:
     print(f"Rendering {cluster_type}/{target.path}")
 
     # Create target directory
-    target_dir = Path(f"rendered/{cluster_type}/{target.path}")
+    target_dir = Path("rendered") / cluster_type / target.path
     target_dir.mkdir(parents=True, exist_ok=True)
 
     # Find applications for this cluster type
@@ -261,8 +264,6 @@ def main() -> None:
 
     # Change to repository root (parent of hack/ directory)
     repo_root = Path(__file__).parent.parent
-    import os
-
     os.chdir(repo_root)
     print(f"Working directory: {repo_root}")
 

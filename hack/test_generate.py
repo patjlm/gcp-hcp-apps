@@ -128,7 +128,9 @@ class TestApplicationDiscovery:
         """Test finding applications in a temporary directory."""
         with tempfile.TemporaryDirectory() as temp_dir:
             # Create test structure
-            cluster_dir = Path(temp_dir) / "management-cluster"
+            config_dir = Path(temp_dir) / "config"
+            config_dir.mkdir()
+            cluster_dir = config_dir / "management-cluster"
             cluster_dir.mkdir()
 
             # Create app directories with values.yaml
@@ -141,10 +143,15 @@ class TestApplicationDiscovery:
             # Create a directory without values.yaml (should be ignored)
             (cluster_dir / "incomplete-app").mkdir()
 
-            # Mock the config path
-            with patch("generate.Path") as mock_path:
-                mock_path.return_value = cluster_dir
+            # Change working directory to temp dir instead of mocking Path
+            import os
+
+            original_cwd = os.getcwd()
+            try:
+                os.chdir(temp_dir)
                 apps = find_applications("management-cluster")
+            finally:
+                os.chdir(original_cwd)
 
             assert sorted(apps) == ["cert-manager", "prometheus"]
 
@@ -296,27 +303,29 @@ class TestValidation:
     def test_missing_application_values_raises_error(self):
         """Test that missing app values.yaml raises an error."""
         with tempfile.TemporaryDirectory() as temp_dir:
-            base_path = Path(temp_dir) / "management-cluster"
+            # Create config directory structure
+            config_dir = Path(temp_dir) / "config"
+            config_dir.mkdir()
+            base_path = config_dir / "management-cluster"
             base_path.mkdir(parents=True)
 
             # Create app directory but NO values.yaml
             app_dir = base_path / "prometheus"
             app_dir.mkdir()
 
-            with patch("generate.Path") as mock_path:
+            # Change working directory to temp dir
+            import os
 
-                def path_side_effect(path_str):
-                    if path_str.startswith("config/"):
-                        return Path(temp_dir) / path_str[7:]
-                    return Path(path_str)
-
-                mock_path.side_effect = path_side_effect
-
+            original_cwd = os.getcwd()
+            try:
+                os.chdir(temp_dir)
                 target = Target(["integration", "int-sector-1", "us-central1"])
 
                 # Should raise FileNotFoundError when trying to load missing values.yaml
                 with pytest.raises(FileNotFoundError):
                     merge_application_values("management-cluster", "prometheus", target)
+            finally:
+                os.chdir(original_cwd)
 
     def test_malformed_yaml_raises_error(self):
         """Test that malformed YAML raises an error."""
