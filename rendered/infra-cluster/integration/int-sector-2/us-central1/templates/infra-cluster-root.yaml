@@ -1,0 +1,44 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: infra-cluster-root
+  namespace: argocd
+  finalizers:
+  - resources-finalizer.argocd.argoproj.io
+spec:
+  generators:
+  - clusters:
+      selector:
+        matchLabels:
+          gcp-hcp/cluster-type: infra-cluster
+      values:
+        environment: '{{ .Values.cluster.environment }}'
+        region: '{{ .Values.cluster.region }}'
+        sector: '{{ .Values.cluster.sector }}'
+  syncPolicy:
+    preserveResourcesOnDeletion: false
+  template:
+    metadata:
+      labels:
+        cluster: '{{name}}'
+        cluster-type: infra-cluster
+        environment: '{{. values.environment }}'
+        region: '{{ .values.region }}'
+        sector: '{{ .values.sector }}'
+      name: infra-apps-{{name}}
+    spec:
+      project: default
+      source:
+        path: rendered/infra-cluster/{{values.environment}}/{{values.sector}}/{{values.region}}
+        repoURL: https://github.com/company/gcp-hcp-apps
+        targetRevision: HEAD
+      destination:
+        namespace: argocd
+        server: '{{server}}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+        - CreateNamespace=true

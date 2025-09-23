@@ -5,13 +5,12 @@ metadata:
   name: hypershift
   namespace: argocd
   finalizers:
-    - resources-finalizer.argocd.argoproj.io
+  - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
   source:
     path: hypershift
-    repoURL: '{{ .Values.cluster.repoURL | default "https://github.com/patjlm/gcp-hcp-apps.git"
-      }}'
+    repoURL: '{{ .Values.cluster.repoURL | default "https://github.com/patjlm/gcp-hcp-apps.git" }}'
     targetRevision: '{{ .Values.cluster.targetRevision | default "main" }}'
   destination:
     name: '{{ .Values.cluster.name }}'

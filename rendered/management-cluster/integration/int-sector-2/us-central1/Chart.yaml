@@ -1,5 +1,6 @@
 apiVersion: v2
-name: management-cluster-apps
-description: ArgoCD applications for management-cluster in integration/int-sector-2/us-central1
-version: 1.0.0
+name: management-cluster-integration-int-sector-2-us-central1
+description: Generated ArgoCD resources for management-cluster/integration/int-sector-2/us-central1
 type: application
+version: 0.1.0
+appVersion: '1.0'

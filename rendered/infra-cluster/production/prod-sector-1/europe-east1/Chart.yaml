@@ -1,0 +1,6 @@
+apiVersion: v2
+name: infra-cluster-production-prod-sector-1-europe-east1
+description: Generated ArgoCD resources for infra-cluster/production/prod-sector-1/europe-east1
+type: application
+version: 0.1.0
+appVersion: '1.0'

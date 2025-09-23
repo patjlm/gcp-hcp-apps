@@ -21,8 +21,8 @@ from generate import (
     Target,
     deep_merge,
     discover_targets,
-    find_applications,
-    merge_application_values,
+    find_components,
+    merge_component_values,
 )
 
 
@@ -124,7 +124,7 @@ class TestValueMerging:
 class TestApplicationDiscovery:
     """Test application discovery."""
 
-    def test_find_applications_with_temp_dir(self):
+    def test_find_components_with_temp_dir(self):
         """Test finding applications in a temporary directory."""
         with tempfile.TemporaryDirectory() as temp_dir:
             # Create test structure
@@ -149,7 +149,7 @@ class TestApplicationDiscovery:
             original_cwd = os.getcwd()
             try:
                 os.chdir(temp_dir)
-                apps = find_applications("management-cluster")
+                apps = find_components("management-cluster")
             finally:
                 os.chdir(original_cwd)
 
@@ -159,7 +159,7 @@ class TestApplicationDiscovery:
 class TestApplicationValueMerging:
     """Test application value merging with temporary files."""
 
-    def test_merge_application_values_with_temp_files(self):
+    def test_merge_component_values_with_temp_files(self):
         """Test merging values from temporary config files."""
         with tempfile.TemporaryDirectory() as temp_dir:
             base_path = Path(temp_dir) / "management-cluster"
@@ -201,7 +201,7 @@ class TestApplicationValueMerging:
                 mock_path.side_effect = path_side_effect
 
                 target = Target(["production", "prod-sector-1", "us-east1"])
-                result = merge_application_values(
+                result = merge_component_values(
                     "management-cluster", "prometheus", target
                 )
 
@@ -255,7 +255,7 @@ class TestIntegration:
 
     def test_real_application_discovery(self):
         """Test application discovery with real config."""
-        apps = find_applications("management-cluster")
+        apps = find_components("management-cluster")
 
         # Should find our configured applications
         assert "argocd" in apps
@@ -269,7 +269,7 @@ class TestIntegration:
         target = Target(["production", "prod-sector-1", "us-east1"])
 
         # Test prometheus merging
-        result = merge_application_values("management-cluster", "prometheus", target)
+        result = merge_component_values("management-cluster", "prometheus", target)
 
         # Should have merged values
         assert "applications" in result
@@ -323,7 +323,7 @@ class TestValidation:
 
                 # Should raise FileNotFoundError when trying to load missing values.yaml
                 with pytest.raises(FileNotFoundError):
-                    merge_application_values("management-cluster", "prometheus", target)
+                    merge_component_values("management-cluster", "prometheus", target)
             finally:
                 os.chdir(original_cwd)
 
@@ -367,7 +367,7 @@ class TestValidation:
                 mock_path.side_effect = path_side_effect
 
                 target = Target(["integration", "int-sector-1", "us-central1"])
-                result = merge_application_values(
+                result = merge_component_values(
                     "management-cluster", "prometheus", target
                 )
 
@@ -379,10 +379,10 @@ class TestValidation:
                 == "77.9.1"
             )
 
-    def test_invalid_cluster_type_returns_empty_apps(self):
-        """Test that invalid cluster type returns empty application list."""
-        apps = find_applications("nonexistent-cluster-type")
-        assert apps == []
+    def test_invalid_cluster_type_raises_error(self):
+        """Test that invalid cluster type raises FileNotFoundError."""
+        with pytest.raises(FileNotFoundError, match="Config directory not found"):
+            find_components("nonexistent-cluster-type")
 
     def test_empty_config_sequence_returns_empty_targets(self):
         """Test that empty sequence returns no targets."""

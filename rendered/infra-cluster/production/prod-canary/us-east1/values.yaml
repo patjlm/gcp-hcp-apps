@@ -1,0 +1,85 @@
+applicationsets:
+  infra-cluster-root:
+    project: default
+    namespace: argocd
+    finalizers:
+    - resources-finalizer.argocd.argoproj.io
+    syncPolicy:
+      preserveResourcesOnDeletion: false
+    generators:
+    - clusters:
+        selector:
+          matchLabels:
+            gcp-hcp/cluster-type: infra-cluster
+        values:
+          environment: '{{ .Values.cluster.environment }}'
+          sector: '{{ .Values.cluster.sector }}'
+          region: '{{ .Values.cluster.region }}'
+    template:
+      metadata:
+        name: infra-apps-{{name}}
+        labels:
+          cluster: '{{name}}'
+          cluster-type: infra-cluster
+          environment: '{{. values.environment }}'
+          sector: '{{ .values.sector }}'
+          region: '{{ .values.region }}'
+      spec:
+        project: default
+        source:
+          repoURL: https://github.com/company/gcp-hcp-apps
+          targetRevision: HEAD
+          path: rendered/infra-cluster/{{values.environment}}/{{values.sector}}/{{values.region}}
+        valkues:
+          cluster: '{{cluster.;name}}'
+        destination:
+          server: '{{server}}'
+          namespace: argocd
+        syncPolicy:
+          automated:
+            prune: true
+            selfHeal: true
+          syncOptions:
+          - CreateNamespace=true
+  management-cluster-root:
+    project: default
+    namespace: argocd
+    finalizers:
+    - resources-finalizer.argocd.argoproj.io
+    syncPolicy:
+      preserveResourcesOnDeletion: false
+    generators:
+    - clusters:
+        selector:
+          matchLabels:
+            gcp-hcp/cluster-type: management-cluster
+        values:
+          environment: '{{ .Values.cluster.environment }}'
+          sector: '{{ .Values.cluster.sector }}'
+          region: '{{ .Values.cluster.region }}'
+    template:
+      metadata:
+        name: mgmt-apps-{{name}}
+        labels:
+          cluster: '{{.name}}'
+          cluster-type: management-cluster
+          environment: '{{ .values.environment }}'
+          sector: '{{ .values.sector }}'
+          region: '{{ .values.region }}'
+      spec:
+        project: default
+        source:
+          repoURL: https://github.com/company/gcp-hcp-apps
+          targetRevision: HEAD
+          path: rendered/management-cluster/{{ .values.environment }}/{{ .values.sector }}/{{ .values.region }}
+          helm:
+            values: "clusters:\n  name: {{ .name }}\n  region: {{ .values.region }}\n  environment: {{ .values.environment }}\n  sector: {{ .values.sector }}\n  project_id: '{{ index .metadata.annotations \"gcp-hcp/project-id\" }}'\n"
+        destination:
+          server: '{{.server}}'
+          namespace: argocd
+        syncPolicy:
+          automated:
+            prune: true
+            selfHeal: true
+          syncOptions:
+          - CreateNamespace=false

@@ -1,0 +1,40 @@
+# ApplicationSet for deploying to infra-cluster labeled clusters
+applicationsets:
+  infra-cluster-root:
+    generators:
+    - clusters:
+        selector:
+          matchLabels:
+            gcp-hcp/cluster-type: infra-cluster
+        values:
+          environment: "{{ .Values.cluster.environment }}"
+          sector: "{{ .Values.cluster.sector }}"
+          region: "{{ .Values.cluster.region }}"
+
+    template:
+      metadata:
+        name: "infra-apps-{{name}}"
+        labels:
+          cluster: "{{name}}"
+          cluster-type: infra-cluster
+          environment: "{{. values.environment }}"
+          sector: "{{ .values.sector }}"
+          region: "{{ .values.region }}"
+      spec:
+        project: default
+        source:
+          repoURL: https://github.com/company/gcp-hcp-apps
+          targetRevision: HEAD
+          path: "rendered/infra-cluster/{{values.environment}}/{{values.sector}}/{{values.region}}"
+        # inject cluster label values into helm values
+        valkues:
+          cluster: "{{cluster.;name}}"
+        destination:
+          server: "{{server}}"
+          namespace: argocd
+        syncPolicy:
+          automated:
+            prune: true
+            selfHeal: true
+          syncOptions:
+          - CreateNamespace=true

@@ -1,0 +1,4 @@
+name: management-cluster-root
+description: "ApplicationSet that deploys applications to management-cluster labeled clusters"
+owners:
+  - team-platform@example.com

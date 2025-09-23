@@ -1,0 +1,6 @@
+apiVersion: v2
+name: infra-cluster-integration-int-sector-1-us-central1
+description: Generated ArgoCD resources for infra-cluster/integration/int-sector-1/us-central1
+type: application
+version: 0.1.0
+appVersion: '1.0'

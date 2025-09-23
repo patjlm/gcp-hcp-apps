@@ -109,7 +109,7 @@ gcp-hcp-apps/
 │       └── production/prod-sector-1/us-east1/
 ├── templates/                        # Base Helm templates
 │   ├── Chart.yaml
-│   └── application.yaml              # ArgoCD Application template
+│   └── argocd-resources.yaml         # ArgoCD Application and ApplicationSet template
 ├── hack/                             # Development tools
 │   ├── generate.py                   # Fleet generator
 │   └── test_generate.py              # Test suite

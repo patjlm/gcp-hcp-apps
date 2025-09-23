@@ -71,7 +71,7 @@ gcp-hcp-apps/
 │       └── production/prod-sector-1/us-east1/
 ├── templates/                        # Base Helm templates
 │   ├── Chart.yaml                    # Template chart definition
-│   ├── application.yaml              # ArgoCD Application template
+│   ├── argocd-resources.yaml         # ArgoCD Application and ApplicationSet template
 │   └── values-example.yaml           # Example values structure
 ├── hypershift/                       # Raw YAML manifests
 │   ├── hypershift-dev.yaml           # Generated from hypershift binary
@@ -104,7 +104,7 @@ gcp-hcp-apps/
 - **Helm Metadata**: Chart.yaml for potential direct helm deployment
 
 ### Application Templates (templates/)
-- **application.yaml**: Generic ArgoCD Application template supporting both Helm charts and raw manifests
+- **argocd-resources.yaml**: Generic ArgoCD Application and ApplicationSet template supporting both Helm charts and raw manifests
 - **Chart.yaml**: Template chart definition for helm processing
 - **values-example.yaml**: Documentation of expected values structure
 

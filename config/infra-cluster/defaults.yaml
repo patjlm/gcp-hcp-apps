@@ -1,0 +1,25 @@
+# Default values for infra cluster applications and applicationsets
+applications:
+  default:
+    project: default
+    namespace: argocd
+    finalizers:
+      - resources-finalizer.argocd.argoproj.io
+    syncPolicy:
+      automated:
+        prune: false  # Prevent accidental resource deletion
+        selfHeal: true
+      syncOptions:
+        - CreateNamespace=true
+    destination:
+      name: "{{ .Values.cluster.name }}"  # Target cluster from ApplicationSet
+
+applicationsets:
+  default:
+    project: default
+    namespace: argocd
+    finalizers:
+      - resources-finalizer.argocd.argoproj.io
+    syncPolicy:
+      preserveResourcesOnDeletion: false
+    # ApplicationSet-specific defaults

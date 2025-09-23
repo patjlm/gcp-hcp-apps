@@ -18,14 +18,14 @@ This is the **gcp-hcp-apps** repository - A GitOps fleet management system for t
       - `metadata.yaml`: Application metadata and ownership
       - `values.yaml`: Base application configuration
       - `{environment}/values.yaml`: Environment-specific overrides
-- **rendered/**: Generated ArgoCD Applications (auto-generated, committed)
+- **rendered/**: Generated ArgoCD resources (auto-generated, committed)
   - `management-cluster/{environment}/{sector}/{region}/`: Target-specific manifests
     - `Chart.yaml`: Helm chart metadata
     - `values.yaml`: Aggregated configuration for target
-    - `templates/{app-name}.yaml`: Individual ArgoCD Application manifests
+    - `templates/{app-name}.yaml`: Individual ArgoCD Application and ApplicationSet manifests
 - **templates/**: Base Helm templates for generation
   - `Chart.yaml`: Template chart definition
-  - `application.yaml`: ArgoCD Application template
+  - `argocd-resources.yaml`: ArgoCD Application and ApplicationSet template
 - **hack/**: Development tools and scripts
   - `generate.py`: Python fleet generator with uv dependencies
   - `test_generate.py`: Comprehensive test suite
@@ -36,8 +36,8 @@ This is the **gcp-hcp-apps** repository - A GitOps fleet management system for t
 1. **Source Configuration**: Applications defined in `config/` with base values and environment overrides
 2. **Target Discovery**: Generator discovers all dimensional combinations from `config.yaml`
 3. **Value Merging**: Deep merge with precedence: defaults → base → environment overrides
-4. **Helm Processing**: Templates processed via `helm template` to generate final ArgoCD Applications
-5. **Output**: Individual application files created in `rendered/` hierarchy
+4. **Helm Processing**: Templates processed via `helm template` to generate final ArgoCD Applications and ApplicationSets
+5. **Output**: Individual Application and ApplicationSet files created in `rendered/` hierarchy
 
 ### Deployment Flow
 
@@ -93,7 +93,7 @@ git commit -m "Update prometheus configuration"
 # Validate YAML syntax across repository
 find . -name "*.yaml" -o -name "*.yml" | xargs -I {} yaml-lint {}
 
-# Validate generated ArgoCD Applications
+# Validate generated ArgoCD Applications and ApplicationSets
 kubectl --dry-run=client apply -f rendered/management-cluster/production/prod-sector-1/us-east1/templates/
 ```
 
@@ -244,7 +244,7 @@ External validation systems and automated promotion are planned but not yet impl
 - **Pre-commit**: Ensure generation is current before PR submission
 - **PR Validation**: Automated checks verify `make generate` produces no changes
 - **Schema Validation**: YAML syntax validation across repository
-- **Template Validation**: Ensure generated ArgoCD Applications are valid
+- **Template Validation**: Ensure generated ArgoCD Applications and ApplicationSets are valid
 
 ### Conflict Resolution
 

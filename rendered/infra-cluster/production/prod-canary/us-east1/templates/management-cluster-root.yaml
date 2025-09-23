@@ -1,0 +1,46 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: management-cluster-root
+  namespace: argocd
+  finalizers:
+  - resources-finalizer.argocd.argoproj.io
+spec:
+  generators:
+  - clusters:
+      selector:
+        matchLabels:
+          gcp-hcp/cluster-type: management-cluster
+      values:
+        environment: '{{ .Values.cluster.environment }}'
+        region: '{{ .Values.cluster.region }}'
+        sector: '{{ .Values.cluster.sector }}'
+  syncPolicy:
+    preserveResourcesOnDeletion: false
+  template:
+    metadata:
+      labels:
+        cluster: '{{.name}}'
+        cluster-type: management-cluster
+        environment: '{{ .values.environment }}'
+        region: '{{ .values.region }}'
+        sector: '{{ .values.sector }}'
+      name: mgmt-apps-{{name}}
+    spec:
+      project: default
+      source:
+        helm:
+          values: "clusters:\n  name: {{ .name }}\n  region: {{ .values.region }}\n  environment: {{ .values.environment }}\n  sector: {{ .values.sector }}\n  project_id: '{{ index .metadata.annotations \"gcp-hcp/project-id\" }}'\n"
+        path: rendered/management-cluster/{{ .values.environment }}/{{ .values.sector }}/{{ .values.region }}
+        repoURL: https://github.com/company/gcp-hcp-apps
+        targetRevision: HEAD
+      destination:
+        namespace: argocd
+        server: '{{.server}}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+        - CreateNamespace=false

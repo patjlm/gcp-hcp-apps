@@ -42,13 +42,5 @@ sequence:
 # Cluster type definitions
 cluster_types:
   - name: management-cluster
-    applications:
-      - argocd
-      - prometheus
-      - cert-manager
-      - hypershift
-  #     - hypershift-operator
+  - name: infra-cluster
   # - name: regional-cluster
-  #   applications:
-  #     - monitoring-agent
-  #     - log-collector

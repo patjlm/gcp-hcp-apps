@@ -267,7 +267,7 @@ rendered/
 │   │       │       ├── alpha/
 │   │       │       │   └── applications/
 │   │       │       │       └── prometheus/
-│   │       │       │           ├── application.yaml      # ArgoCD Application
+│   │       │       │           ├── argocd-resources.yaml  # ArgoCD Application and ApplicationSet
 │   │       │       │           └── applicationset.yaml   # Optional ApplicationSet
 │   │       │       └── beta/
 │   │       └── prod/
@@ -280,13 +280,13 @@ rendered/
 │           └── prod/
 │               └── applications/
 │                   └── monitoring-agent/
-│                       └── application.yaml    # ArgoCD Application
+│                       └── argocd-resources.yaml  # ArgoCD Application and ApplicationSet
 ```
 
 **Key Distinction**: The rendered manifests are ArgoCD Applications that reference application deployment repositories:
 
 ```yaml
-# rendered/cluster-types/management/environments/dev/sectors/alpha/applications/prometheus/application.yaml
+# rendered/cluster-types/management/environments/dev/sectors/alpha/applications/prometheus/argocd-resources.yaml
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
