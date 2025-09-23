@@ -4,52 +4,81 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is the **gcp-hcp-apps** repository - ArgoCD applications for the GCP HCP (Google Cloud Platform Hypershift Container Platform) project using the Traditional App of Apps pattern. It manages deployment of applications to management clusters including ArgoCD itself, Prometheus, cert-manager, and the Hypershift operator.
+This is the **gcp-hcp-apps** repository - A GitOps fleet management system for the GCP HCP (Google Cloud Platform Hypershift Container Platform) project. It implements a source-to-target generation pattern that manages deployment of applications across multi-dimensional hierarchies (environment/sector/region) to management clusters including ArgoCD, Prometheus, cert-manager, and the Hypershift operator.
 
 ## Repository Architecture
 
 ### Core Structure
-- **management-clusters/**: Root Helm chart implementing App of Apps pattern
-  - `Chart.yaml`: Root Helm chart definition
-  - `values.yaml`: Default application configurations
-  - `values-dev.yaml`: Development environment overrides
-  - `values-prod.yaml`: Production environment overrides
-  - `templates/`: ArgoCD Application templates for each managed application
-- **hypershift/**: Raw Kubernetes manifests for Hypershift operator
-  - `hypershift-dev.yaml`: Generated from `hypershift install render --development`
-  - `cert.yaml`: Certificate configuration
+- **config/**: Source configuration with dimensional hierarchy
+  - `config.yaml`: Global fleet configuration defining environments/sectors/regions
+  - `management-cluster/`: Cluster type organization
+    - `application-defaults.yaml`: Default ArgoCD Application settings
+    - `{app-name}/`: Individual application configuration
+      - `metadata.yaml`: Application metadata and ownership
+      - `values.yaml`: Base application configuration
+      - `{environment}/values.yaml`: Environment-specific overrides
+- **rendered/**: Generated ArgoCD Applications (auto-generated, committed)
+  - `management-cluster/{environment}/{sector}/{region}/`: Target-specific manifests
+    - `Chart.yaml`: Helm chart metadata
+    - `values.yaml`: Aggregated configuration for target
+    - `templates/{app-name}.yaml`: Individual ArgoCD Application manifests
+- **templates/**: Base Helm templates for generation
+  - `Chart.yaml`: Template chart definition
+  - `application.yaml`: ArgoCD Application template
+- **generate.py**: Python fleet generator with uv dependencies
+- **test_generate.py**: Comprehensive test suite
+- **Makefile**: Build targets (generate, test, check)
 
-### Bootstrap Flow
-1. **Terraform creates**: GKE cluster + ArgoCD namespace + minimal root application
-2. **ArgoCD takes over**: Root app self-configures and deploys all applications
-3. **Self-management**: ArgoCD manages its own lifecycle via argocd-app.yaml template
+### Generation Flow
+1. **Source Configuration**: Applications defined in `config/` with base values and environment overrides
+2. **Target Discovery**: Generator discovers all dimensional combinations from `config.yaml`
+3. **Value Merging**: Deep merge with precedence: defaults → base → environment overrides
+4. **Helm Processing**: Templates processed via `helm template` to generate final ArgoCD Applications
+5. **Output**: Individual application files created in `rendered/` hierarchy
 
-### Application Management
-- Applications are defined as Helm templates in `management-clusters/templates/`
-- Each template creates an ArgoCD Application that deploys to the cluster
-- Applications can be Helm charts (ArgoCD, Prometheus, cert-manager) or raw manifests (Hypershift)
-- Environment-specific overrides in `values-{env}.yaml` files
+### Deployment Flow
+1. **ApplicationSets**: Consume generated manifests from `rendered/` directory
+2. **Cluster Targeting**: ApplicationSets use cluster labels to match dimensional targets
+3. **Value Injection**: Cluster metadata (name, region, projectId) injected at deployment time
+4. **Progressive Rollouts**: Changes advance through dimensional hierarchy with validation gates
 
 ## Common Commands
 
-### Helm Operations
+### Fleet Generation
 ```bash
-# Validate Helm chart syntax
-helm lint management-clusters/
+# Generate all ArgoCD applications
+make generate
 
-# Template rendering for debugging
-helm template management-clusters/ --values management-clusters/values-dev.yaml
+# Run comprehensive test suite
+make test
 
-# Dry-run template with specific values
-helm template management-clusters/ \
-  --values management-clusters/values.yaml \
-  --values management-clusters/values-dev.yaml
+# Check that generated files are current (CI/CD)
+make check
+
+# Manual generation
+uv run generate.py
+
+# Manual testing
+uv run test_generate.py -v
 ```
 
-### Hypershift Manifest Generation
+### Development Workflow
 ```bash
-# Regenerate Hypershift manifests (when operator version changes)
-hypershift install render --development > hypershift/hypershift-dev.yaml
+# 1. Modify configuration
+vim config/management-cluster/prometheus/values.yaml
+
+# 2. Generate updated manifests
+make generate
+
+# 3. Validate changes
+git diff rendered/
+
+# 4. Run tests
+make test
+
+# 5. Commit both source and generated changes
+git add config/ rendered/
+git commit -m "Update prometheus configuration"
 ```
 
 ### Repository Validation
@@ -57,27 +86,128 @@ hypershift install render --development > hypershift/hypershift-dev.yaml
 # Validate YAML syntax across repository
 find . -name "*.yaml" -o -name "*.yml" | xargs -I {} yaml-lint {}
 
-# Validate ArgoCD Application templates
-argocd app validate --file management-clusters/templates/
+# Validate generated ArgoCD Applications
+kubectl --dry-run=client apply -f rendered/management-cluster/production/prod-sector-1/us-east1/templates/
 ```
 
 ## Key Configuration Patterns
 
 ### Adding New Applications
-1. Create template in `management-clusters/templates/{app-name}-app.yaml`
-2. Add application configuration to `management-clusters/values.yaml`
-3. Add environment-specific overrides in `values-dev.yaml` and `values-prod.yaml`
-4. Use conditional logic: `{{- if .Values.applications.{app-name}.enabled }}`
+1. **Create Application Directory**:
+   ```bash
+   mkdir -p config/management-cluster/my-app
+   ```
 
-### Environment Detection
-- Root application automatically determines environment from cluster metadata ConfigMap
-- Dynamically loads appropriate values file (`values-dev.yaml` or `values-prod.yaml`)
-- Injects cluster metadata (project_id, region, vpc_network_id) to all applications
+2. **Add Metadata** (`config/management-cluster/my-app/metadata.yaml`):
+   ```yaml
+   name: my-app
+   description: "Application description"
+   owners:
+     - team-platform@example.com
+   ```
 
-### Self-Management Pattern
-- ArgoCD manages its own lifecycle via `argocd-app.yaml` template
-- Root application updates itself from Git changes
-- All applications follow GitOps principles with automated sync
+3. **Configure Base Values** (`config/management-cluster/my-app/values.yaml`):
+   ```yaml
+   applications:
+     my-app:
+       source:
+         repoURL: https://charts.example.com
+         targetRevision: "1.0.0"
+         chart: my-app
+       destination:
+         namespace: my-namespace
+       syncPolicy:
+         syncOptions:
+           - CreateNamespace=true
+   ```
+
+4. **Add to Fleet Configuration** (`config/config.yaml`):
+   ```yaml
+   cluster_types:
+     - name: management-cluster
+       applications:
+         - argocd
+         - prometheus
+         - cert-manager
+         - hypershift
+         - my-app  # Add here
+   ```
+
+5. **Generate and Test**:
+   ```bash
+   make generate
+   make test
+   ```
+
+### Environment Overrides
+Create environment-specific configurations for production stability:
+
+```bash
+# Production overrides
+mkdir -p config/management-cluster/my-app/production
+cat > config/management-cluster/my-app/production/values.yaml << EOF
+applications:
+  my-app:
+    source:
+      targetRevision: "0.9.0"  # Stable version
+      helm:
+        valuesObject:
+          replicas: 3
+          resources:
+            requests:
+              memory: "1Gi"
+              cpu: "500m"
+EOF
+```
+
+### Dimensional Configuration
+The fleet hierarchy supports any dimensional structure defined in `config.yaml`:
+
+```yaml
+sequence:
+  environments:
+    - name: integration
+      sectors:
+        - name: int-sector-1
+          regions: [us-central1, europe-west1]
+    - name: stage
+      promotion: manual  # Validation gate
+      sectors:
+        - name: stage-sector-1
+          regions: [us-east1, europe-west1]
+    - name: production
+      promotion: manual
+      sectors:
+        - name: prod-sector-1
+          regions: [us-east1, europe-east1]
+```
+
+### Value Injection Patterns
+Use template syntax for cluster-specific values:
+
+```yaml
+applications:
+  my-app:
+    destination:
+      name: '{{ .Values.cluster.name }}'
+      namespace: my-namespace
+    source:
+      helm:
+        valuesObject:
+          cluster:
+            region: '{{ .Values.cluster.region }}'
+            projectId: '{{ .Values.cluster.projectId }}'
+            vpcId: '{{ .Values.cluster.vpcId }}'
+```
+
+### Promotion Flow
+Changes progress through dimensions with validation gates:
+
+1. **Integration**: `integration/int-sector-1/us-central1` (auto-promotion)
+2. **Staging**: `stage/stage-sector-1/us-east1` (manual gate)
+3. **Production**: `production/prod-sector-1/us-east1` (manual gate)
+
+Each promotion can be gated by external validation systems checking deployment health.
 
 ## Architecture Context
 
