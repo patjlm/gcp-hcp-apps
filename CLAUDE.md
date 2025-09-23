@@ -9,6 +9,7 @@ This is the **gcp-hcp-apps** repository - A GitOps fleet management system for t
 ## Repository Architecture
 
 ### Core Structure
+
 - **config/**: Source configuration with dimensional hierarchy
   - `config.yaml`: Global fleet configuration defining environments/sectors/regions
   - `management-cluster/`: Cluster type organization
@@ -30,6 +31,7 @@ This is the **gcp-hcp-apps** repository - A GitOps fleet management system for t
 - **Makefile**: Build targets (generate, test, check)
 
 ### Generation Flow
+
 1. **Source Configuration**: Applications defined in `config/` with base values and environment overrides
 2. **Target Discovery**: Generator discovers all dimensional combinations from `config.yaml`
 3. **Value Merging**: Deep merge with precedence: defaults → base → environment overrides
@@ -37,6 +39,7 @@ This is the **gcp-hcp-apps** repository - A GitOps fleet management system for t
 5. **Output**: Individual application files created in `rendered/` hierarchy
 
 ### Deployment Flow
+
 1. **ApplicationSets**: Consume generated manifests from `rendered/` directory
 2. **Cluster Targeting**: ApplicationSets use cluster labels to match dimensional targets
 3. **Value Injection**: Cluster metadata (name, region, projectId) injected at deployment time
@@ -45,6 +48,7 @@ This is the **gcp-hcp-apps** repository - A GitOps fleet management system for t
 ## Common Commands
 
 ### Fleet Generation
+
 ```bash
 # Generate all ArgoCD applications
 make generate
@@ -63,6 +67,7 @@ uv run test_generate.py -v
 ```
 
 ### Development Workflow
+
 ```bash
 # 1. Modify configuration
 vim config/management-cluster/prometheus/values.yaml
@@ -82,6 +87,7 @@ git commit -m "Update prometheus configuration"
 ```
 
 ### Repository Validation
+
 ```bash
 # Validate YAML syntax across repository
 find . -name "*.yaml" -o -name "*.yml" | xargs -I {} yaml-lint {}
@@ -93,12 +99,15 @@ kubectl --dry-run=client apply -f rendered/management-cluster/production/prod-se
 ## Key Configuration Patterns
 
 ### Adding New Applications
+
 1. **Create Application Directory**:
+
    ```bash
    mkdir -p config/management-cluster/my-app
    ```
 
 2. **Add Metadata** (`config/management-cluster/my-app/metadata.yaml`):
+
    ```yaml
    name: my-app
    description: "Application description"
@@ -107,6 +116,7 @@ kubectl --dry-run=client apply -f rendered/management-cluster/production/prod-se
    ```
 
 3. **Configure Base Values** (`config/management-cluster/my-app/values.yaml`):
+
    ```yaml
    applications:
      my-app:
@@ -122,6 +132,7 @@ kubectl --dry-run=client apply -f rendered/management-cluster/production/prod-se
    ```
 
 4. **Add to Fleet Configuration** (`config/config.yaml`):
+
    ```yaml
    cluster_types:
      - name: management-cluster
@@ -134,12 +145,14 @@ kubectl --dry-run=client apply -f rendered/management-cluster/production/prod-se
    ```
 
 5. **Generate and Test**:
+
    ```bash
    make generate
    make test
    ```
 
 ### Environment Overrides
+
 Create environment-specific configurations for production stability:
 
 ```bash
@@ -161,6 +174,7 @@ EOF
 ```
 
 ### Dimensional Configuration
+
 The fleet hierarchy supports any dimensional structure defined in `config.yaml`:
 
 ```yaml
@@ -183,6 +197,7 @@ sequence:
 ```
 
 ### Value Injection Patterns
+
 Use template syntax for cluster-specific values:
 
 ```yaml
@@ -201,6 +216,7 @@ applications:
 ```
 
 ### Promotion Flow
+
 Changes progress through dimensions with validation gates:
 
 1. **Integration**: `integration/int-sector-1/us-central1` (auto-promotion)
@@ -212,11 +228,13 @@ Each promotion can be gated by external validation systems checking deployment h
 ## Architecture Context
 
 This repository implements a multi-tier architecture:
+
 - **Regional Clusters**: Infrastructure management
 - **Management Clusters**: Hypershift hosting (this repository manages these)
 - **Customer Clusters**: Hypershift-managed hosted clusters
 
 For detailed architecture documentation, see:
+
 - `BOOTSTRAP-ARCHITECTURE.md`: Bootstrap flow and component relationships
 - `GitOps-repo-structure.md`: Comprehensive analysis of GitOps patterns and alternatives
 - `README.md`: Usage patterns and repository structure

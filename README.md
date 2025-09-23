@@ -78,11 +78,13 @@ uv run generate.py
 ### Adding New Applications
 
 1. **Create Configuration**:
+
    ```bash
    mkdir -p config/management-cluster/my-app
    ```
 
 2. **Add Metadata** (`config/management-cluster/my-app/metadata.yaml`):
+
    ```yaml
    name: my-app
    description: "My application description"
@@ -91,6 +93,7 @@ uv run generate.py
    ```
 
 3. **Configure Application** (`config/management-cluster/my-app/values.yaml`):
+
    ```yaml
    applications:
      my-app:
@@ -109,6 +112,7 @@ uv run generate.py
    ```
 
 4. **Add to Fleet** (`config/config.yaml`):
+
    ```yaml
    cluster_types:
      - name: management-cluster
@@ -253,5 +257,6 @@ uv run test_generate.py::TestValidation -v
 ```
 
 For detailed technical specifications, see:
+
 - `DESIGN.md`: Complete technical design
 - `REQUIREMENTS.md`: System requirements and architecture

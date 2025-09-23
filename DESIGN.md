@@ -171,6 +171,7 @@ cluster_types:
 **Per Cluster Type**: `config/<cluster-type>/application-defaults.yaml`
 
 **Management Cluster** (`config/management-cluster/application-defaults.yaml`):
+
 ```yaml
 # Default values for management cluster applications
 defaults:
@@ -191,6 +192,7 @@ defaults:
 ```
 
 **Regional Cluster** (`config/regional-cluster/application-defaults.yaml`):
+
 ```yaml
 # Default values for regional cluster applications
 defaults:
@@ -266,6 +268,7 @@ applications:
 Override files follow the same structure but only include changed values:
 
 **Environment Override** (`config/cluster-type/app-name/production/values.yaml`):
+
 ```yaml
 applications:
   hypershift-operator:
@@ -282,6 +285,7 @@ applications:
 ```
 
 **Region Override** (`config/cluster-type/app-name/europe-west1/values.yaml`):
+
 ```yaml
 applications:
   hypershift-operator:
@@ -300,6 +304,7 @@ applications:
 Patches enable controlled version rollouts across dimensions:
 
 **Version Patch** (`config/cluster-type/app-name/patches/patch-001.yaml`):
+
 ```yaml
 metadata:
   id: "hypershift-v4.18-rollout"
@@ -339,6 +344,7 @@ patch:
 The generator is implemented as a self-contained Python script using `uv` for dependency management:
 
 **Core Dependencies**:
+
 - `pyyaml` - YAML parsing and generation
 - `jsonpath-ng` - Dependency evaluation
 - `click` - CLI interface
@@ -359,6 +365,7 @@ The generator is implemented as a self-contained Python script using `uv` for de
 6. **Validation**: Verify generated content against schema
 
 **Patch Progression**: Patches defined in `config/cluster-type/app-name/patches/` are applied to specific environment/sector/region combinations based on the current promotion state. The same patch moves through the dimensional hierarchy as validation succeeds:
+
 - `patch-001.yaml` starts in `integration/int-sector-1/us-central1/`
 - After validation, progresses to `integration/int-sector-1/europe-west1/`
 - Eventually reaches `prod/prod-sector-1/us-east1/`
@@ -366,6 +373,7 @@ The generator is implemented as a self-contained Python script using `uv` for de
 ### Value Merging Strategy
 
 **Deep Merge Algorithm**:
+
 ```python
 def deep_merge(base_dict, override_dict, merge_strategy=None, path=""):
     """Recursively merge override values into base dictionary."""
@@ -387,6 +395,7 @@ def deep_merge(base_dict, override_dict, merge_strategy=None, path=""):
 ```
 
 **Patch Lifecycle Management**:
+
 ```python
 def validate_patch_completion(patch_id, applied_dimensions, all_dimensions):
     """Check if patch has rolled out to all target dimensions."""
@@ -399,6 +408,7 @@ def validate_patch_completion(patch_id, applied_dimensions, all_dimensions):
 ```
 
 **Merge Precedence** (later values override earlier):
+
 1. Application defaults (`config/application-defaults.yaml`)
 2. Base application values (`values.yaml`)
 3. Environment override
@@ -491,6 +501,7 @@ spec:
 **Problem**: ApplicationSets inject cluster metadata (region, projectId, vpcId, etc.) that applications need to reference in their helm values, but the templating mechanics are complex.
 
 **Technical Challenge**:
+
 1. ApplicationSet processes `{{cluster.region}}` → creates static Application with `cluster.region: "us-east1"`
 2. ArgoCD processes this Application → targets our rendered Helm chart repository
 3. **Our Helm chart** needs to process application values containing `"{{ .Values.cluster.region }}"` → resolve to `"us-east1"`
@@ -501,6 +512,7 @@ The ArgoCD Application template uses `{{- toYaml $appData.source.helm.valuesObje
 
 **Unresolved Design Decision**:
 How can applications dynamically reference ApplicationSet-injected values without:
+
 - Forcing standardized variable names (`cluster.region`) on all teams
 - Requiring complex template preprocessing in the generator
 - Breaking the clean separation between config and rendering
@@ -509,6 +521,7 @@ How can applications dynamically reference ApplicationSet-injected values withou
 
 1. **Escaped Templating** (Most Promising):
    Applications use escaped Helm templates in their values:
+
    ```yaml
    # In config/management-cluster/hypershift-operator/values.yaml
    hypershift-operator:
@@ -534,6 +547,7 @@ How can applications dynamically reference ApplicationSet-injected values withou
 4. **Accept Limitation**: Applications use static values, no dynamic cluster injection
 
 **Status**: Escaped templating (#1) appears most viable but **REQUIRES THOROUGH TESTING** to validate:
+
 - ApplicationSet cluster value injection mechanics
 - Helm template processing order and context
 - End-to-end cluster value flow from ApplicationSet → target charts
@@ -608,6 +622,7 @@ spec:
 ### CI/CD Integration
 
 **Pre-commit Validation**:
+
 ```bash
 # Ensure generation is current
 ./generate.py --dry-run --validate
@@ -618,6 +633,7 @@ fi
 ```
 
 **PR Checks**:
+
 - Schema validation for all YAML files
 - OWNERS file validation for changed applications
 - Dependency graph validation
@@ -628,6 +644,7 @@ fi
 ### File Structure Requirements
 
 **Generated Helm Chart** (`rendered/cluster-type/env/sector/region/`):
+
 ```
 Chart.yaml          # Standard Helm chart metadata
 values.yaml         # Merged application values
@@ -636,6 +653,7 @@ templates/
 ```
 
 **Chart.yaml Template**:
+
 ```yaml
 apiVersion: v2
 name: {{ cluster_type }}-apps
