@@ -2,11 +2,11 @@
 
 # Generate ArgoCD applications for all fleet targets
 generate:
-	uv run generate.py
+	uv run hack/generate.py
 
 # Run unit and integration tests
 test:
-	uv run test_generate.py -v
+	uv run hack/test_generate.py -v
 
 # Check that generated files are current (for CI/CD)
 check: generate

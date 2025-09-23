@@ -26,8 +26,9 @@ This is the **gcp-hcp-apps** repository - A GitOps fleet management system for t
 - **templates/**: Base Helm templates for generation
   - `Chart.yaml`: Template chart definition
   - `application.yaml`: ArgoCD Application template
-- **generate.py**: Python fleet generator with uv dependencies
-- **test_generate.py**: Comprehensive test suite
+- **hack/**: Development tools and scripts
+  - `generate.py`: Python fleet generator with uv dependencies
+  - `test_generate.py`: Comprehensive test suite
 - **Makefile**: Build targets (generate, test, check)
 
 ### Generation Flow
@@ -60,10 +61,10 @@ make test
 make check
 
 # Manual generation
-uv run generate.py
+uv run hack/generate.py
 
 # Manual testing
-uv run test_generate.py -v
+uv run hack/test_generate.py -v
 ```
 
 ### Development Workflow
@@ -219,11 +220,46 @@ applications:
 
 Changes progress through dimensions with validation gates:
 
-1. **Integration**: `integration/int-sector-1/us-central1` (auto-promotion)
+1. **Integration**: `integration/int-sector-1/us-central1` (future auto-promotion)
 2. **Staging**: `stage/stage-sector-1/us-east1` (manual gate)
 3. **Production**: `production/prod-sector-1/us-east1` (manual gate)
 
-Each promotion can be gated by external validation systems checking deployment health.
+External validation systems and automated promotion are planned but not yet implemented.
+
+## Technical Implementation Details
+
+### Generator Algorithm
+
+1. **Discovery**: Scan `config/` to find all cluster-type/application combinations
+2. **Dimensional Matrix**: Generate all environment/sector/region combinations from `config.yaml`
+3. **Value Merging**: For each app/dimension combination:
+   - Load cluster-type defaults (`application-defaults.yaml`)
+   - Load base application values (`values.yaml`)
+   - Apply environment/sector/region overrides (if exist)
+4. **Template Processing**: Create temporary Helm charts and run `helm template`
+5. **Validation**: Verify generated content and fail fast on errors
+
+### CI/CD Integration
+
+- **Pre-commit**: Ensure generation is current before PR submission
+- **PR Validation**: Automated checks verify `make generate` produces no changes
+- **Schema Validation**: YAML syntax validation across repository
+- **Template Validation**: Ensure generated ArgoCD Applications are valid
+
+### Conflict Resolution
+
+- **Full Regeneration**: Remove everything, recreate eliminates drift
+- **Idempotent Generation**: Re-running on unchanged sources produces no file changes
+- **Audit Trail**: Git tracks exact deployment manifests per target
+
+### Repository Evolution
+
+This system handles both configuration changes and structural evolution:
+
+- **Adding/removing applications**: Update `config.yaml` and regenerate
+- **Changing resource structures**: Modify templates and regenerate all targets
+- **Updating CRD schemas**: Templates adapt automatically via Helm processing
+- **Modifying deployment patterns**: Generator ensures consistency across all dimensions
 
 ## Architecture Context
 
@@ -233,15 +269,9 @@ This repository implements a multi-tier architecture:
 - **Management Clusters**: Hypershift hosting (this repository manages these)
 - **Customer Clusters**: Hypershift-managed hosted clusters
 
-For detailed architecture documentation, see:
+## Security Rules
 
-- `BOOTSTRAP-ARCHITECTURE.md`: Bootstrap flow and component relationships
-- `GitOps-repo-structure.md`: Comprehensive analysis of GitOps patterns and alternatives
-- `README.md`: Usage patterns and repository structure
-
-# Security Rules
-
-## Global security rules for all projects 🛡️
+### Global security rules for all projects 🛡️
 
 ### Security Principles
 

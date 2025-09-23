@@ -15,7 +15,8 @@ from unittest.mock import patch
 
 # Import functions from generate.py
 import sys
-sys.path.append('.')
+from pathlib import Path
+sys.path.append(str(Path(__file__).parent))
 from generate import (
     discover_targets,
     find_applications,

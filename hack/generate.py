@@ -229,6 +229,12 @@ def main() -> None:
     print("GitOps Fleet Generator")
     print("=====================")
 
+    # Change to repository root (parent of hack/ directory)
+    repo_root = Path(__file__).parent.parent
+    import os
+    os.chdir(repo_root)
+    print(f"Working directory: {repo_root}")
+
     # Load global config
     config = load_yaml(Path("config/config.yaml"))
 

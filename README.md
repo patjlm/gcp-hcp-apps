@@ -11,6 +11,69 @@ This repository implements a **source-to-target generation pattern** where:
 3. **Target Deployment**: Generated manifests deployed via ApplicationSets to appropriate clusters
 4. **Promotion Flow**: Changes progress through dimensional hierarchy with validation gates
 
+### Bootstrap and Deployment Flow
+
+```mermaid
+graph TD
+    A[ApplicationSet] --> B[Cluster Generator]
+    B --> C["Match cluster-type: management-cluster"]
+    C --> D[Generate Application per cluster]
+    D --> E["Target: rendered/management-cluster/env/sector/region"]
+    E --> F[Inject cluster values via helm.valuesObject]
+    F --> G[ArgoCD Application created on target cluster]
+    G --> H[ArgoCD fetches rendered Helm chart]
+    H --> I[Helm processes cluster values]
+    I --> J[Individual Application CRs deployed]
+    J --> K[Each app targets its own source repo/chart]
+
+    subgraph "Cluster Metadata"
+        L[cluster.name]
+        M[cluster.region]
+        N[cluster.projectId]
+        O[cluster.vpcId]
+    end
+
+    F --> L
+    F --> M
+    F --> N
+    F --> O
+```
+
+### Config to Rendered Generation
+
+```mermaid
+graph TD
+    A[config/config.yaml] --> B[Generator discovers dimensions]
+    B --> C["environment × sector × region matrix"]
+
+    D[config/management-cluster/app/values.yaml] --> E[Base application config]
+    F[config/management-cluster/app/production/values.yaml] --> G[Environment overrides]
+    H[config/management-cluster/application-defaults.yaml] --> I[Default ArgoCD settings]
+
+    J[Generator merges values] --> K[Deep merge precedence]
+    K --> L["defaults → base → env → sector → region"]
+
+    E --> J
+    G --> J
+    I --> J
+    C --> J
+
+    J --> M[Create temporary Helm chart]
+    M --> N["Run 'helm template'"]
+    N --> O[Split output by Application name]
+    O --> P["rendered/cluster-type/env/sector/region/templates/app.yaml"]
+
+    subgraph "Value Merging Example"
+        Q["prometheus base: v77.9.1"]
+        R["production override: v77.8.0"]
+        S["Final: v77.8.0 in prod"]
+    end
+
+    K --> Q
+    K --> R
+    K --> S
+```
+
 ### Key Benefits
 
 - **Multi-dimensional deployment**: Environment/sector/region hierarchy
@@ -47,8 +110,9 @@ gcp-hcp-apps/
 ├── templates/                        # Base Helm templates
 │   ├── Chart.yaml
 │   └── application.yaml              # ArgoCD Application template
-├── generate.py                       # Fleet generator
-├── test_generate.py                  # Test suite
+├── hack/                             # Development tools
+│   ├── generate.py                   # Fleet generator
+│   └── test_generate.py              # Test suite
 └── Makefile                          # Build targets
 ```
 
@@ -64,7 +128,7 @@ make generate
 make test
 
 # Manual generation
-uv run generate.py
+uv run hack/generate.py
 ```
 
 ### Development Workflow
@@ -203,9 +267,11 @@ spec:
 Changes flow through the dimensional hierarchy:
 
 1. **Development**: Start in `integration/int-sector-1/us-central1`
-2. **Validation**: External validation component checks deployment health
-3. **Promotion**: Advance to next dimension (automated or manual gates)
+2. **Validation**: External validation component checks deployment health (future)
+3. **Promotion**: Advance to next dimension with manual gates (automation planned)
 4. **Production**: Reach `production/prod-sector-1/us-east1`
+
+The fleet configuration supports promotion rules, though automated promotion is not yet implemented.
 
 ### CI/CD Validation
 
@@ -222,13 +288,14 @@ fi
 
 ## Generator Details
 
-The Python generator (`generate.py`):
+The Python generator (`hack/generate.py`):
 
-- **Target Discovery**: Finds all environment/sector/region combinations
+- **Target Discovery**: Finds all environment/sector/region combinations from `config.yaml`
 - **Value Merging**: Deep merge with precedence: defaults → base → environment overrides
 - **Template Processing**: Uses Helm to generate final ArgoCD Applications
 - **Validation**: Fails fast on missing mandatory files
 - **Output**: Creates one YAML file per application in `rendered/` hierarchy
+- **Idempotent**: Re-running on unchanged sources produces no file changes
 
 ### Value Merging Order
 
@@ -253,10 +320,36 @@ Comprehensive test suite covers:
 make test
 
 # Run specific test
-uv run test_generate.py::TestValidation -v
+uv run hack/test_generate.py::TestValidation -v
 ```
 
-For detailed technical specifications, see:
+## Cluster Value Injection
 
-- `DESIGN.md`: Complete technical design
-- `REQUIREMENTS.md`: System requirements and architecture
+Applications can reference dynamic cluster metadata using template syntax:
+
+```yaml
+applications:
+  my-app:
+    destination:
+      name: '{{ .Values.cluster.name }}'
+    source:
+      helm:
+        valuesObject:
+          cluster:
+            region: '{{ .Values.cluster.region }}'
+            projectId: '{{ .Values.cluster.projectId }}'
+            vpcId: '{{ .Values.cluster.vpcId }}'
+```
+
+The ApplicationSet injects cluster metadata that becomes available as `.Values.cluster.*` during Helm processing.
+
+## Repository Evolution
+
+This system handles both configuration changes and structural evolution:
+
+- **Adding/removing applications**: Update `config.yaml` and regenerate
+- **Changing resource structures**: Modify templates and regenerate all targets
+- **Updating CRD schemas**: Templates adapt automatically via Helm processing
+- **Modifying deployment patterns**: Generator ensures consistency across all dimensions
+
+The source-to-target pattern eliminates configuration drift by regenerating complete manifests rather than applying incremental patches.
