@@ -1,0 +1,4 @@
+name: prometheus
+description: "Prometheus monitoring stack with Grafana for management clusters"
+owners:
+  - team-platform@example.com

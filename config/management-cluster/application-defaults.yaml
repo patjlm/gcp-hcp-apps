@@ -1,0 +1,16 @@
+# Default values for management cluster applications
+defaults:
+  project: default
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  syncPolicy:
+    automated:
+      prune: false  # Prevent accidental resource deletion
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+  destination:
+    name: "{{ .Values.cluster.name }}"  # Target cluster from ApplicationSet
+    # namespace: to be defined in each application
+  # No ignoreDifferences by default - applications must be explicit

@@ -1,0 +1,28 @@
+# Base configuration for cert-manager
+applications:
+  cert-manager:
+    # ArgoCD source configuration
+    source:
+      repoURL: https://charts.jetstack.io
+      targetRevision: "v1.18.2"
+      chart: cert-manager
+      helm:
+        valuesObject:
+          crds:
+            enabled: true
+          prometheus:
+            enabled: true
+          webhook:
+            securePort: 10260
+          cainjector:
+            enabled: true
+
+    # Deployment destination
+    destination:
+      namespace: cert-manager
+
+    # Application-specific configuration
+    syncPolicy:
+      syncOptions:
+        - CreateNamespace=true
+        - ServerSideApply=true

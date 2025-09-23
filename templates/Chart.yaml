@@ -1,0 +1,5 @@
+apiVersion: v2
+name: gcp-hcp-apps
+description: ArgoCD applications for GCP HCP fleet management
+version: 1.0.0
+type: application

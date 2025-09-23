@@ -1,0 +1,52 @@
+# Fleet dimensional hierarchy
+dimensions:
+  - environments
+  - sectors
+  - regions
+
+# Deployment sequence and promotion rules
+sequence:
+  environments:
+    - name: integration
+      sectors:
+        - name: int-sector-1
+          promotion: automated
+          regions:
+            - name: us-central1
+            - name: europe-west1
+        - name: int-sector-2
+          promotion: automated
+          regions:
+            - name: us-central1
+    - name: stage
+      promotion: manual  # Gate between environments
+      sectors:
+        - name: stage-sector-1
+          promotion: automated
+          regions:
+            - name: us-east1
+            - name: europe-west1
+    - name: production
+      promotion: manual
+      sectors:
+        - name: prod-canary
+          promotion: automated
+          regions:
+            - name: us-east1
+        - name: prod-sector-1
+          promotion: manual
+          regions:
+            - name: us-east1
+            - name: europe-east1
+
+# Cluster type definitions
+cluster_types:
+  - name: management-cluster
+    applications:
+      - prometheus
+      - cert-manager
+  #     - hypershift-operator
+  # - name: regional-cluster
+  #   applications:
+  #     - monitoring-agent
+  #     - log-collector

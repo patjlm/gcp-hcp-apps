@@ -1,0 +1,4 @@
+name: cert-manager
+description: "Certificate management for Kubernetes clusters"
+owners:
+  - team-platform@example.com
