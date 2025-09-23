@@ -7,23 +7,24 @@
 Unit tests for the GitOps fleet generator.
 """
 
-import pytest
-import yaml
+# Import functions from generate.py
+import sys
 import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
-# Import functions from generate.py
-import sys
-from pathlib import Path
+import pytest
+import yaml
+
 sys.path.append(str(Path(__file__).parent))
 from generate import (
+    Target,
+    deep_merge,
     discover_targets,
     find_applications,
     merge_application_values,
-    deep_merge,
-    Target
 )
+
 
 class TestTargetDiscovery:
     """Test target discovery from config.yaml."""
@@ -31,19 +32,19 @@ class TestTargetDiscovery:
     def test_discover_targets_simple(self):
         """Test basic target discovery."""
         config = {
-            'sequence': {
-                'environments': [
+            "sequence": {
+                "environments": [
                     {
-                        'name': 'integration',
-                        'sectors': [
+                        "name": "integration",
+                        "sectors": [
                             {
-                                'name': 'int-sector-1',
-                                'regions': [
-                                    {'name': 'us-central1'},
-                                    {'name': 'europe-west1'}
-                                ]
+                                "name": "int-sector-1",
+                                "regions": [
+                                    {"name": "us-central1"},
+                                    {"name": "europe-west1"},
+                                ],
                             }
-                        ]
+                        ],
                     }
                 ]
             }
@@ -52,32 +53,29 @@ class TestTargetDiscovery:
         targets = discover_targets(config)
 
         assert len(targets) == 2
-        assert Target(['integration', 'int-sector-1', 'us-central1']) in targets
-        assert Target(['integration', 'int-sector-1', 'europe-west1']) in targets
+        assert Target(["integration", "int-sector-1", "us-central1"]) in targets
+        assert Target(["integration", "int-sector-1", "europe-west1"]) in targets
 
     def test_discover_targets_multi_environment(self):
         """Test discovery with multiple environments."""
         config = {
-            'sequence': {
-                'environments': [
+            "sequence": {
+                "environments": [
                     {
-                        'name': 'integration',
-                        'sectors': [
+                        "name": "integration",
+                        "sectors": [
                             {
-                                'name': 'int-sector-1',
-                                'regions': [{'name': 'us-central1'}]
+                                "name": "int-sector-1",
+                                "regions": [{"name": "us-central1"}],
                             }
-                        ]
+                        ],
                     },
                     {
-                        'name': 'production',
-                        'sectors': [
-                            {
-                                'name': 'prod-sector-1',
-                                'regions': [{'name': 'us-east1'}]
-                            }
-                        ]
-                    }
+                        "name": "production",
+                        "sectors": [
+                            {"name": "prod-sector-1", "regions": [{"name": "us-east1"}]}
+                        ],
+                    },
                 ]
             }
         }
@@ -85,41 +83,43 @@ class TestTargetDiscovery:
         targets = discover_targets(config)
 
         assert len(targets) == 2
-        assert Target(['integration', 'int-sector-1', 'us-central1']) in targets
-        assert Target(['production', 'prod-sector-1', 'us-east1']) in targets
+        assert Target(["integration", "int-sector-1", "us-central1"]) in targets
+        assert Target(["production", "prod-sector-1", "us-east1"]) in targets
+
 
 class TestValueMerging:
     """Test value merging logic."""
 
     def test_deep_merge_simple(self):
         """Test simple deep merge."""
-        base = {'a': 1, 'b': {'c': 2}}
-        override = {'b': {'d': 3}, 'e': 4}
+        base = {"a": 1, "b": {"c": 2}}
+        override = {"b": {"d": 3}, "e": 4}
 
         result = deep_merge(base, override)
 
-        expected = {'a': 1, 'b': {'c': 2, 'd': 3}, 'e': 4}
+        expected = {"a": 1, "b": {"c": 2, "d": 3}, "e": 4}
         assert result == expected
 
     def test_deep_merge_override(self):
         """Test deep merge with override."""
-        base = {'a': 1, 'b': {'c': 2}}
-        override = {'a': 10, 'b': {'c': 20}}
+        base = {"a": 1, "b": {"c": 2}}
+        override = {"a": 10, "b": {"c": 20}}
 
         result = deep_merge(base, override)
 
-        expected = {'a': 10, 'b': {'c': 20}}
+        expected = {"a": 10, "b": {"c": 20}}
         assert result == expected
 
     def test_deep_merge_lists(self):
         """Test deep merge with lists (should replace)."""
-        base = {'items': [1, 2, 3]}
-        override = {'items': [4, 5]}
+        base = {"items": [1, 2, 3]}
+        override = {"items": [4, 5]}
 
         result = deep_merge(base, override)
 
-        expected = {'items': [4, 5]}
+        expected = {"items": [4, 5]}
         assert result == expected
+
 
 class TestApplicationDiscovery:
     """Test application discovery."""
@@ -142,11 +142,12 @@ class TestApplicationDiscovery:
             (cluster_dir / "incomplete-app").mkdir()
 
             # Mock the config path
-            with patch('generate.Path') as mock_path:
+            with patch("generate.Path") as mock_path:
                 mock_path.return_value = cluster_dir
                 apps = find_applications("management-cluster")
 
             assert sorted(apps) == ["cert-manager", "prometheus"]
+
 
 class TestApplicationValueMerging:
     """Test application value merging with temporary files."""
@@ -159,46 +160,32 @@ class TestApplicationValueMerging:
 
             # Create application defaults
             defaults_content = {
-                'defaults': {
-                    'project': 'default',
-                    'namespace': 'argocd'
-                }
+                "defaults": {"project": "default", "namespace": "argocd"}
             }
-            with open(base_path / "application-defaults.yaml", 'w') as f:
+            with open(base_path / "application-defaults.yaml", "w") as f:
                 yaml.dump(defaults_content, f)
 
             # Create app base values
             app_dir = base_path / "prometheus"
             app_dir.mkdir()
             app_values = {
-                'applications': {
-                    'prometheus': {
-                        'source': {
-                            'targetRevision': '77.9.1'
-                        }
-                    }
-                }
+                "applications": {"prometheus": {"source": {"targetRevision": "77.9.1"}}}
             }
-            with open(app_dir / "values.yaml", 'w') as f:
+            with open(app_dir / "values.yaml", "w") as f:
                 yaml.dump(app_values, f)
 
             # Create environment override
             env_dir = app_dir / "production"
             env_dir.mkdir()
             env_override = {
-                'applications': {
-                    'prometheus': {
-                        'source': {
-                            'targetRevision': '77.8.0'
-                        }
-                    }
-                }
+                "applications": {"prometheus": {"source": {"targetRevision": "77.8.0"}}}
             }
-            with open(env_dir / "values.yaml", 'w') as f:
+            with open(env_dir / "values.yaml", "w") as f:
                 yaml.dump(env_override, f)
 
             # Mock Path to use our temp directory
-            with patch('generate.Path') as mock_path:
+            with patch("generate.Path") as mock_path:
+
                 def path_side_effect(path_str):
                     if path_str.startswith("config/"):
                         return Path(temp_dir) / path_str[7:]  # Remove "config/" prefix
@@ -206,27 +193,34 @@ class TestApplicationValueMerging:
 
                 mock_path.side_effect = path_side_effect
 
-                target = Target(['production', 'prod-sector-1', 'us-east1'])
-                result = merge_application_values("management-cluster", "prometheus", target)
+                target = Target(["production", "prod-sector-1", "us-east1"])
+                result = merge_application_values(
+                    "management-cluster", "prometheus", target
+                )
 
             # Verify merging
-            assert 'applications' in result
-            assert 'prometheus' in result['applications']
+            assert "applications" in result
+            assert "prometheus" in result["applications"]
 
             # Should have defaults
-            assert result['applications']['prometheus']['project'] == 'default'
-            assert result['applications']['prometheus']['namespace'] == 'argocd'
+            assert result["applications"]["prometheus"]["project"] == "default"
+            assert result["applications"]["prometheus"]["namespace"] == "argocd"
 
             # Should have production override
-            assert result['applications']['prometheus']['source']['targetRevision'] == '77.8.0'
+            assert (
+                result["applications"]["prometheus"]["source"]["targetRevision"]
+                == "77.8.0"
+            )
+
 
 class TestTarget:
     """Test Target dataclass."""
 
     def test_target_path(self):
         """Test target path generation."""
-        target = Target(['integration', 'int-sector-1', 'us-central1'])
-        assert target.path == 'integration/int-sector-1/us-central1'
+        target = Target(["integration", "int-sector-1", "us-central1"])
+        assert target.path == "integration/int-sector-1/us-central1"
+
 
 class TestIntegration:
     """Integration tests using actual config files."""
@@ -244,9 +238,9 @@ class TestIntegration:
 
         # Verify some specific targets exist
         expected_targets = [
-            Target(['integration', 'int-sector-1', 'us-central1']),
-            Target(['production', 'prod-sector-1', 'us-east1']),
-            Target(['stage', 'stage-sector-1', 'europe-west1'])
+            Target(["integration", "int-sector-1", "us-central1"]),
+            Target(["production", "prod-sector-1", "us-east1"]),
+            Target(["stage", "stage-sector-1", "europe-west1"]),
         ]
 
         for target in expected_targets:
@@ -265,23 +259,29 @@ class TestIntegration:
 
     def test_real_value_merging(self):
         """Test value merging with real config files."""
-        target = Target(['production', 'prod-sector-1', 'us-east1'])
+        target = Target(["production", "prod-sector-1", "us-east1"])
 
         # Test prometheus merging
         result = merge_application_values("management-cluster", "prometheus", target)
 
         # Should have merged values
-        assert 'applications' in result
-        assert 'prometheus' in result['applications']
+        assert "applications" in result
+        assert "prometheus" in result["applications"]
 
-        prometheus_config = result['applications']['prometheus']
+        prometheus_config = result["applications"]["prometheus"]
 
         # Should have production version override
-        assert prometheus_config['source']['targetRevision'] == '77.8.0'
+        assert prometheus_config["source"]["targetRevision"] == "77.8.0"
 
         # Should have enhanced production resources
-        assert 'prometheus' in prometheus_config['source']['helm']['valuesObject']
-        assert prometheus_config['source']['helm']['valuesObject']['prometheus']['prometheusSpec']['retention'] == '30d'
+        assert "prometheus" in prometheus_config["source"]["helm"]["valuesObject"]
+        assert (
+            prometheus_config["source"]["helm"]["valuesObject"]["prometheus"][
+                "prometheusSpec"
+            ]["retention"]
+            == "30d"
+        )
+
 
 class TestValidation:
     """Test validation and error handling."""
@@ -303,14 +303,16 @@ class TestValidation:
             app_dir = base_path / "prometheus"
             app_dir.mkdir()
 
-            with patch('generate.Path') as mock_path:
+            with patch("generate.Path") as mock_path:
+
                 def path_side_effect(path_str):
                     if path_str.startswith("config/"):
                         return Path(temp_dir) / path_str[7:]
                     return Path(path_str)
+
                 mock_path.side_effect = path_side_effect
 
-                target = Target(['integration', 'int-sector-1', 'us-central1'])
+                target = Target(["integration", "int-sector-1", "us-central1"])
 
                 # Should raise FileNotFoundError when trying to load missing values.yaml
                 with pytest.raises(FileNotFoundError):
@@ -322,7 +324,7 @@ class TestValidation:
             malformed_file = Path(temp_dir) / "malformed.yaml"
 
             # Write malformed YAML
-            with open(malformed_file, 'w') as f:
+            with open(malformed_file, "w") as f:
                 f.write("invalid: yaml: content: [unclosed")
 
             from generate import load_yaml
@@ -341,29 +343,32 @@ class TestValidation:
             app_dir = base_path / "prometheus"
             app_dir.mkdir()
             app_values = {
-                'applications': {
-                    'prometheus': {
-                        'source': {'targetRevision': '77.9.1'}
-                    }
-                }
+                "applications": {"prometheus": {"source": {"targetRevision": "77.9.1"}}}
             }
-            with open(app_dir / "values.yaml", 'w') as f:
+            with open(app_dir / "values.yaml", "w") as f:
                 yaml.dump(app_values, f)
 
-            with patch('generate.Path') as mock_path:
+            with patch("generate.Path") as mock_path:
+
                 def path_side_effect(path_str):
                     if path_str.startswith("config/"):
                         return Path(temp_dir) / path_str[7:]
                     return Path(path_str)
+
                 mock_path.side_effect = path_side_effect
 
-                target = Target(['integration', 'int-sector-1', 'us-central1'])
-                result = merge_application_values("management-cluster", "prometheus", target)
+                target = Target(["integration", "int-sector-1", "us-central1"])
+                result = merge_application_values(
+                    "management-cluster", "prometheus", target
+                )
 
             # Should work without defaults, just return app values
-            assert 'applications' in result
-            assert 'prometheus' in result['applications']
-            assert result['applications']['prometheus']['source']['targetRevision'] == '77.9.1'
+            assert "applications" in result
+            assert "prometheus" in result["applications"]
+            assert (
+                result["applications"]["prometheus"]["source"]["targetRevision"]
+                == "77.9.1"
+            )
 
     def test_invalid_cluster_type_returns_empty_apps(self):
         """Test that invalid cluster type returns empty application list."""
@@ -372,17 +377,18 @@ class TestValidation:
 
     def test_empty_config_sequence_returns_empty_targets(self):
         """Test that empty sequence returns no targets."""
-        config = {'sequence': {}}
+        config = {"sequence": {}}
         targets = discover_targets(config)
         assert targets == []
 
     def test_config_missing_sequence_raises_error(self):
         """Test that config missing sequence key raises error."""
-        config = {'other_key': 'value'}
+        config = {"other_key": "value"}
 
         # Should raise KeyError when trying to access sequence
         with pytest.raises(KeyError):
             discover_targets(config)
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

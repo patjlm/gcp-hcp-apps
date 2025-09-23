@@ -1,4 +1,4 @@
-.PHONY: generate test check
+.PHONY: generate test check lint format
 
 # Generate ArgoCD applications for all fleet targets
 generate:
@@ -16,3 +16,13 @@ check: generate
 		echo "✗ Generated files are stale. Run 'make generate'"; \
 		exit 1; \
 	fi
+
+# Run linting and type checks
+lint:
+	ruff check hack/
+
+# Format code and fix auto-fixable issues
+format:
+	ruff check --fix hack/
+	ruff check --select I --fix hack/
+	ruff format hack/
