@@ -1,0 +1,4 @@
+name: argocd
+description: "ArgoCD GitOps continuous delivery tool"
+owners:
+  - team-platform@example.com

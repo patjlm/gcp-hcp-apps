@@ -41,7 +41,7 @@ def save_yaml(data: Dict[str, Any], file_path: Path) -> None:
     """Save data to YAML file."""
     file_path.parent.mkdir(parents=True, exist_ok=True)
     with open(file_path, 'w') as f:
-        yaml.dump(data, f, default_flow_style=False, sort_keys=False)
+        yaml.dump(data, f, default_flow_style=False, sort_keys=False, width=1000)
 
 def deep_merge(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
     """Simple deep merge of dictionaries."""
@@ -115,11 +115,13 @@ def merge_application_values(cluster_type: str, app_name: str, target: Target) -
         if 'defaults' in defaults:
             merged = deep_merge(merged, {'applications': {app_name: defaults['defaults']}})
 
-    # 2. Load base application values
+    # 2. Load base application values (mandatory)
     app_values_file = base_path / app_name / "values.yaml"
-    if app_values_file.exists():
-        app_values = load_yaml(app_values_file)
-        merged = deep_merge(merged, app_values)
+    if not app_values_file.exists():
+        raise FileNotFoundError(f"Mandatory application values file not found: {app_values_file}")
+
+    app_values = load_yaml(app_values_file)
+    merged = deep_merge(merged, app_values)
 
     # 3. Load dimensional overrides (try each path level)
     # e.g., for ["production", "prod-sector-1", "us-east1"]
@@ -184,13 +186,33 @@ def render_target(cluster_type: str, target: Target) -> None:
                 check=True
             )
 
-            # Create templates directory and save applications.yaml
+            # Create templates directory
             (target_dir / "templates").mkdir(exist_ok=True)
-            with open(target_dir / "templates" / "applications.yaml", 'w') as f:
-                # Remove source comments but keep the rest
-                lines = result.stdout.split('\n')
-                filtered_lines = [line for line in lines if not line.startswith('# Source:')]
-                f.write('\n'.join(filtered_lines))
+
+            # Split the helm output into separate applications
+            raw_output = result.stdout
+
+            # Remove source comments
+            lines = raw_output.split('\n')
+            filtered_lines = [line for line in lines if not line.startswith('# Source:')]
+            clean_output = '\n'.join(filtered_lines)
+
+            # Split by YAML document separators and parse each application
+            yaml_docs = clean_output.split('---\n')
+
+            for doc_text in yaml_docs:
+                doc_text = doc_text.strip()
+                if not doc_text:
+                    continue
+
+                # Parse the document to extract application name
+                doc = yaml.safe_load(doc_text)
+                if doc and doc.get('kind') == 'Application':
+                    app_name = doc['metadata']['name']
+
+                    # Save each application to its own file
+                    with open(target_dir / "templates" / f"{app_name}.yaml", 'w') as f:
+                        f.write('---\n' + doc_text)
 
             # Save the Chart.yaml and aggregated values.yaml
             save_yaml(chart_data, target_dir / "Chart.yaml")

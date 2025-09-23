@@ -1,4 +1,0 @@
-apiVersion: v2
-name: management-cluster-apps
-description: Root application for bootstrapping and managing cluster applications
-version: 1.0.0

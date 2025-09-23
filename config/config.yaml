@@ -43,8 +43,10 @@ sequence:
 cluster_types:
   - name: management-cluster
     applications:
+      - argocd
       - prometheus
       - cert-manager
+      - hypershift
   #     - hypershift-operator
   # - name: regional-cluster
   #   applications:

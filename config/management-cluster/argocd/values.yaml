@@ -1,0 +1,27 @@
+# Base configuration for argocd
+applications:
+  argocd:
+    # ArgoCD source configuration
+    source:
+      repoURL: https://argoproj.github.io/argo-helm
+      targetRevision: "5.46.0"
+      chart: argo-cd
+      helm:
+        valuesObject:
+          server:
+            service:
+              type: ClusterIP
+          controller:
+            replicas: 1
+          repoServer:
+            replicas: 1
+
+    # Deployment destination
+    destination:
+      namespace: argocd
+
+    # Application-specific configuration
+    syncPolicy:
+      syncOptions:
+        - CreateNamespace=true
+        - ServerSideApply=true

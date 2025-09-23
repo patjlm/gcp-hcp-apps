@@ -1,0 +1,18 @@
+# Base configuration for hypershift
+applications:
+  hypershift:
+    # ArgoCD source configuration - using raw manifests from this repo
+    source:
+      repoURL: "{{ .Values.cluster.repoURL | default \"https://github.com/patjlm/gcp-hcp-apps.git\" }}"
+      targetRevision: "{{ .Values.cluster.targetRevision | default \"main\" }}"
+      path: hypershift
+
+    # Deployment destination
+    destination:
+      namespace: hypershift
+
+    # Application-specific configuration
+    syncPolicy:
+      syncOptions:
+        - CreateNamespace=true
+        - ServerSideApply=true

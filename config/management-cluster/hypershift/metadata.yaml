@@ -1,0 +1,4 @@
+name: hypershift
+description: "Hypershift operator for managing hosted clusters"
+owners:
+  - team-platform@example.com

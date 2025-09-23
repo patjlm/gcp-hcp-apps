@@ -1,0 +1,25 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: hypershift
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    path: hypershift
+    repoURL: '{{ .Values.cluster.repoURL | default "https://github.com/patjlm/gcp-hcp-apps.git"
+      }}'
+    targetRevision: '{{ .Values.cluster.targetRevision | default "main" }}'
+  destination:
+    name: '{{ .Values.cluster.name }}'
+    namespace: hypershift
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=true
+    - ServerSideApply=true
