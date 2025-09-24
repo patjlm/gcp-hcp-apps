@@ -259,10 +259,27 @@ rm all patch files
    - Merge patch content into base `values.yaml`
    - Remove all environment-level patches
 
+#### Patch Conflict Detection
+
+The system automatically detects conflicts within each dimensional level:
+
+```bash
+# Example output when patches conflict
+WARNING: Patch conflict detected:
+  config/management-cluster/cert-manager/integration/patch-002.yaml conflicts with config/management-cluster/cert-manager/integration/patch-001.yaml
+  Conflicting paths: applications.cert-manager.source.targetRevision
+```
+
+**Conflict Detection Features:**
+- Detects overlapping YAML paths between patches in same dimension
+- Shows full file paths for easy navigation
+- Lists exact conflicting configuration paths
+- Warns but allows generation to continue (last patch wins)
+- Works at any dimensional level (environment, sector, region)
+
 **Note**: Patch progression is currently manual. Future enhancements may include:
 - CLI commands for patch promotion (`promote`, `consolidate`)
 - Dependency checking and automatic promotion
-- Patch conflict detection
 
 ### Dimensional Configuration
 

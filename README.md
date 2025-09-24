@@ -260,6 +260,8 @@ Patches progress through dimensions manually:
 5. **Promote**: Move patch to environment level
 6. **Integrate**: Merge into base `values.yaml`, remove all patches
 
+The system automatically detects conflicts between patches in the same dimension and warns about overlapping configuration paths.
+
 ### Fleet Configuration
 
 The fleet hierarchy is defined in `config/config.yaml`:
