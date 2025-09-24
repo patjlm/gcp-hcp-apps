@@ -21,7 +21,7 @@ spec:
         webhook:
           securePort: 10260
     repoURL: https://charts.jetstack.io
-    targetRevision: v1.18.2
+    targetRevision: v1.16.0
   destination:
     name: '{{ .Values.cluster.name }}'
     namespace: cert-manager

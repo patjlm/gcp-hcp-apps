@@ -258,7 +258,7 @@ def render_target(cluster_type: str, target: Target) -> None:
 
     # Merge values for all components
     merged_values: Dict[str, Any] = {}
-    for component_name in components:
+    for component_name in sorted(components):
         component_values = merge_component_values(cluster_type, component_name, target)
         merged_values = deep_merge(merged_values, component_values)
 

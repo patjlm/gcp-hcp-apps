@@ -1,4 +1,80 @@
 applications:
+  argocd:
+    project: default
+    namespace: argocd
+    finalizers:
+    - resources-finalizer.argocd.argoproj.io
+    syncPolicy:
+      automated:
+        prune: false
+        selfHeal: true
+      syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    destination:
+      name: '{{ .Values.cluster.name }}'
+      namespace: argocd
+    source:
+      repoURL: https://argoproj.github.io/argo-helm
+      targetRevision: 5.46.0
+      chart: argo-cd
+      helm:
+        valuesObject:
+          server:
+            service:
+              type: ClusterIP
+          controller:
+            replicas: 1
+          repoServer:
+            replicas: 1
+  cert-manager:
+    project: default
+    namespace: argocd
+    finalizers:
+    - resources-finalizer.argocd.argoproj.io
+    syncPolicy:
+      automated:
+        prune: false
+        selfHeal: true
+      syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    destination:
+      name: '{{ .Values.cluster.name }}'
+      namespace: cert-manager
+    source:
+      repoURL: https://charts.jetstack.io
+      targetRevision: v1.16.0
+      chart: cert-manager
+      helm:
+        valuesObject:
+          crds:
+            enabled: true
+          prometheus:
+            enabled: true
+          webhook:
+            securePort: 10260
+          cainjector:
+            enabled: true
+  hypershift:
+    project: default
+    namespace: argocd
+    finalizers:
+    - resources-finalizer.argocd.argoproj.io
+    syncPolicy:
+      automated:
+        prune: false
+        selfHeal: true
+      syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    destination:
+      name: '{{ .Values.cluster.name }}'
+      namespace: hypershift
+    source:
+      repoURL: '{{ .Values.cluster.repoURL | default "https://github.com/patjlm/gcp-hcp-apps.git" }}'
+      targetRevision: '{{ .Values.cluster.targetRevision | default "main" }}'
+      path: hypershift
   prometheus:
     project: default
     namespace: argocd
@@ -39,79 +115,3 @@ applications:
                 requests:
                   memory: 4Gi
                   cpu: 1000m
-  cert-manager:
-    project: default
-    namespace: argocd
-    finalizers:
-    - resources-finalizer.argocd.argoproj.io
-    syncPolicy:
-      automated:
-        prune: false
-        selfHeal: true
-      syncOptions:
-      - CreateNamespace=true
-      - ServerSideApply=true
-    destination:
-      name: '{{ .Values.cluster.name }}'
-      namespace: cert-manager
-    source:
-      repoURL: https://charts.jetstack.io
-      targetRevision: v1.16.0
-      chart: cert-manager
-      helm:
-        valuesObject:
-          crds:
-            enabled: true
-          prometheus:
-            enabled: true
-          webhook:
-            securePort: 10260
-          cainjector:
-            enabled: true
-  argocd:
-    project: default
-    namespace: argocd
-    finalizers:
-    - resources-finalizer.argocd.argoproj.io
-    syncPolicy:
-      automated:
-        prune: false
-        selfHeal: true
-      syncOptions:
-      - CreateNamespace=true
-      - ServerSideApply=true
-    destination:
-      name: '{{ .Values.cluster.name }}'
-      namespace: argocd
-    source:
-      repoURL: https://argoproj.github.io/argo-helm
-      targetRevision: 5.46.0
-      chart: argo-cd
-      helm:
-        valuesObject:
-          server:
-            service:
-              type: ClusterIP
-          controller:
-            replicas: 1
-          repoServer:
-            replicas: 1
-  hypershift:
-    project: default
-    namespace: argocd
-    finalizers:
-    - resources-finalizer.argocd.argoproj.io
-    syncPolicy:
-      automated:
-        prune: false
-        selfHeal: true
-      syncOptions:
-      - CreateNamespace=true
-      - ServerSideApply=true
-    destination:
-      name: '{{ .Values.cluster.name }}'
-      namespace: hypershift
-    source:
-      repoURL: '{{ .Values.cluster.repoURL | default "https://github.com/patjlm/gcp-hcp-apps.git" }}'
-      targetRevision: '{{ .Values.cluster.targetRevision | default "main" }}'
-      path: hypershift
