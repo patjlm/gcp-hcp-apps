@@ -8,7 +8,6 @@ Simple GitOps fleet generator.
 Generates ArgoCD resources for multi-dimensional deployment hierarchies.
 """
 
-import enum
 import os
 import shutil
 import subprocess
@@ -159,7 +158,9 @@ def merge_component_values(
 
     component_values = load_yaml(component_values_file)
     if not component_values:
-        raise ValueError(f"Component values file is empty or invalid: {component_values_file}")
+        raise ValueError(
+            f"Component values file is empty or invalid: {component_values_file}"
+        )
     merged = deep_merge(merged, component_values)
 
     # 2.5. Apply defaults dynamically based on what sections exist in component_values
@@ -190,15 +191,27 @@ def merge_component_values(
                 default_values, merged[section_name][item_name]
             )
 
-    # 3. Load dimensional overrides (try each path level)
+    # 3. Load dimensional overrides (try each cumulative path level)
     # e.g., for ["production", "prod-sector-1", "us-east1"]
-    # try: production/values.yaml, prod-sector-1/values.yaml, us-east1/values.yaml
+    # try: production/, production/prod-sector-1/, production/prod-sector-1/us-east1/
     component_dir = base_path / component_name
-    for dimension_value in target.path_parts:
-        override_file = component_dir / dimension_value / "values.yaml"
+    for i in range(len(target.path_parts)):
+        dimension_dir = component_dir / "/".join(target.path_parts[: i + 1])
+
+        # Apply permanent values first
+        override_file = dimension_dir / "override.yaml"
         if override_file.exists():
             override = load_yaml(override_file)
             merged = deep_merge(merged, override)
+
+        # Apply patches second (in filename order)
+        if dimension_dir.exists():
+            for patch_file in sorted(dimension_dir.glob("patch-*.yaml")):
+                patch_data = load_yaml(patch_file)
+                # Drop metadata section, apply rest using existing deep_merge
+                if "metadata" in patch_data:
+                    del patch_data["metadata"]
+                merged = deep_merge(merged, patch_data)
 
     return merged
 

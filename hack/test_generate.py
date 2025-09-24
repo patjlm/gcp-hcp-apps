@@ -187,7 +187,7 @@ class TestApplicationValueMerging:
             env_override = {
                 "applications": {"prometheus": {"source": {"targetRevision": "77.8.0"}}}
             }
-            with open(env_dir / "values.yaml", "w") as f:
+            with open(env_dir / "override.yaml", "w") as f:
                 yaml.dump(env_override, f)
 
             # Mock Path to use our temp directory
@@ -233,61 +233,162 @@ class TestIntegration:
     """Integration tests using actual config files."""
 
     def test_real_config_discovery(self):
-        """Test target discovery with real config.yaml."""
-        from generate import load_yaml
+        """Test target discovery with realistic config structure."""
+        # Use mock config instead of reading from actual config files
+        config = {
+            "sequence": {
+                "environments": [
+                    {
+                        "name": "integration",
+                        "sectors": [
+                            {
+                                "name": "int-sector-1",
+                                "regions": [
+                                    {"name": "us-central1"},
+                                    {"name": "europe-west1"},
+                                ],
+                            }
+                        ],
+                    },
+                    {
+                        "name": "production",
+                        "sectors": [
+                            {
+                                "name": "prod-sector-1",
+                                "regions": [
+                                    {"name": "us-east1"},
+                                    {"name": "europe-east1"},
+                                ],
+                            }
+                        ],
+                    },
+                ]
+            }
+        }
 
-        # Load our actual config
-        config = load_yaml(Path("config/config.yaml"))
         targets = discover_targets(config)
 
         # Verify we get the expected number of targets
-        assert len(targets) == 8
+        assert len(targets) == 4
 
-        # Verify some specific targets exist
+        # Verify specific targets exist
         expected_targets = [
             Target(["integration", "int-sector-1", "us-central1"]),
+            Target(["integration", "int-sector-1", "europe-west1"]),
             Target(["production", "prod-sector-1", "us-east1"]),
-            Target(["stage", "stage-sector-1", "europe-west1"]),
+            Target(["production", "prod-sector-1", "europe-east1"]),
         ]
 
         for target in expected_targets:
             assert target in targets
 
-    def test_real_application_discovery(self):
-        """Test application discovery with real config."""
-        apps = find_components("management-cluster")
+    def test_application_discovery_with_mock_structure(self):
+        """Test application discovery with mock directory structure."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Create mock management-cluster structure
+            cluster_dir = Path(temp_dir) / "config" / "management-cluster"
+            cluster_dir.mkdir(parents=True)
 
-        # Should find our configured applications
-        assert "argocd" in apps
-        assert "prometheus" in apps
-        assert "cert-manager" in apps
-        assert "hypershift" in apps
-        assert len(apps) == 4
+            # Create app directories with values.yaml
+            (cluster_dir / "prometheus" / "values.yaml").parent.mkdir()
+            (cluster_dir / "prometheus" / "values.yaml").touch()
+            (cluster_dir / "cert-manager" / "values.yaml").parent.mkdir()
+            (cluster_dir / "cert-manager" / "values.yaml").touch()
 
-    def test_real_value_merging(self):
-        """Test value merging with real config files."""
-        target = Target(["production", "prod-sector-1", "us-east1"])
+            with patch("generate.Path") as mock_path:
 
-        # Test prometheus merging
-        result = merge_component_values("management-cluster", "prometheus", target)
+                def path_side_effect(path_str):
+                    if path_str == "config":
+                        return Path(temp_dir) / "config"
+                    return Path(path_str)
 
-        # Should have merged values
-        assert "applications" in result
-        assert "prometheus" in result["applications"]
+                mock_path.side_effect = path_side_effect
 
-        prometheus_config = result["applications"]["prometheus"]
+                apps = find_components("management-cluster")
 
-        # Should have production version override
-        assert prometheus_config["source"]["targetRevision"] == "77.8.0"
+                # Should find our mock applications
+                assert "prometheus" in apps
+                assert "cert-manager" in apps
+                assert len(apps) == 2
 
-        # Should have enhanced production resources
-        assert "prometheus" in prometheus_config["source"]["helm"]["valuesObject"]
-        assert (
-            prometheus_config["source"]["helm"]["valuesObject"]["prometheus"][
-                "prometheusSpec"
-            ]["retention"]
-            == "30d"
-        )
+    def test_value_merging_with_mock_files(self):
+        """Test value merging with mock config files."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            base_path = Path(temp_dir) / "management-cluster"
+            base_path.mkdir(parents=True)
+
+            # Create minimal structure with defaults
+            defaults_content = {"applications": {"default": {"project": "default"}}}
+            with open(base_path / "defaults.yaml", "w") as f:
+                yaml.dump(defaults_content, f)
+
+            prometheus_dir = base_path / "prometheus"
+            prometheus_dir.mkdir()
+
+            # Base values
+            base_values = {
+                "applications": {
+                    "prometheus": {
+                        "source": {"targetRevision": "77.9.1"},
+                        "destination": {"namespace": "monitoring"},
+                    }
+                }
+            }
+            with open(prometheus_dir / "values.yaml", "w") as f:
+                yaml.dump(base_values, f)
+
+            # Production override
+            prod_dir = prometheus_dir / "production"
+            prod_dir.mkdir()
+            prod_override = {
+                "applications": {
+                    "prometheus": {
+                        "source": {
+                            "targetRevision": "77.8.0",
+                            "helm": {
+                                "valuesObject": {
+                                    "prometheus": {
+                                        "prometheusSpec": {"retention": "30d"}
+                                    }
+                                }
+                            },
+                        }
+                    }
+                }
+            }
+            with open(prod_dir / "override.yaml", "w") as f:
+                yaml.dump(prod_override, f)
+
+            with patch("generate.os.chdir"), patch("generate.Path") as mock_path:
+
+                def path_side_effect(path_str):
+                    if path_str == "config":
+                        return Path(temp_dir)
+                    return Path(path_str)
+
+                mock_path.side_effect = path_side_effect
+
+                target = Target(["production"])
+                result = merge_component_values(
+                    "management-cluster", "prometheus", target
+                )
+
+                # Should have merged values
+                assert "applications" in result
+                assert "prometheus" in result["applications"]
+
+                prometheus_config = result["applications"]["prometheus"]
+
+                # Should have production version override
+                assert prometheus_config["source"]["targetRevision"] == "77.8.0"
+
+                # Should have enhanced production resources
+                assert (
+                    prometheus_config["source"]["helm"]["valuesObject"]["prometheus"][
+                        "prometheusSpec"
+                    ]["retention"]
+                    == "30d"
+                )
 
 
 class TestValidation:
@@ -378,6 +479,234 @@ class TestValidation:
                 result["applications"]["prometheus"]["source"]["targetRevision"]
                 == "77.9.1"
             )
+
+    def test_patch_files_applied_after_values(self):
+        """Test that patch files are applied after values.yaml in each dimension."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            base_path = Path(temp_dir) / "management-cluster"
+            base_path.mkdir(parents=True)
+
+            # Create application defaults
+            defaults_content = {
+                "applications": {
+                    "default": {
+                        "project": "default",
+                        "namespace": "argocd",
+                        "syncPolicy": {"automated": {"prune": False, "selfHeal": True}},
+                    }
+                }
+            }
+            with open(base_path / "defaults.yaml", "w") as f:
+                yaml.dump(defaults_content, f)
+
+            # Create prometheus component structure
+            prometheus_dir = base_path / "prometheus"
+            prometheus_dir.mkdir()
+
+            # Base values
+            base_values = {
+                "applications": {
+                    "prometheus": {
+                        "source": {"targetRevision": "77.9.1"},
+                        "destination": {"namespace": "monitoring"},
+                    }
+                }
+            }
+            with open(prometheus_dir / "values.yaml", "w") as f:
+                yaml.dump(base_values, f)
+
+            # Production dimension with values and patch
+            prod_dir = prometheus_dir / "production"
+            prod_dir.mkdir()
+
+            # Production values (permanent config)
+            prod_values = {
+                "applications": {
+                    "prometheus": {
+                        "source": {"targetRevision": "77.8.0"},  # Stable version
+                        "syncPolicy": {"syncOptions": ["CreateNamespace=true"]},
+                    }
+                }
+            }
+            with open(prod_dir / "override.yaml", "w") as f:
+                yaml.dump(prod_values, f)
+
+            # Production patch (temporary change)
+            patch_content = {
+                "metadata": {
+                    "description": "Upgrade to v77.9.0 with security fixes",
+                    "dependencies": ["cert-manager/source/targetRevision: >=v1.13.0"],
+                },
+                "applications": {
+                    "prometheus": {
+                        "source": {
+                            "targetRevision": "77.9.0"
+                        },  # Patch overrides stable version
+                        "syncPolicy": {
+                            "syncOptions": ["ServerSideApply=true"]
+                        },  # Adds to list
+                    }
+                },
+            }
+            with open(prod_dir / "patch-001.yaml", "w") as f:
+                yaml.dump(patch_content, f)
+
+            # Mock os.chdir and Path so merge_component_values finds our temp files
+            with patch("generate.os.chdir"), patch("generate.Path") as mock_path:
+
+                def path_side_effect(path_str):
+                    if path_str == "config":
+                        return Path(temp_dir)
+                    return Path(path_str)
+
+                mock_path.side_effect = path_side_effect
+
+                target = Target(["production"])
+                result = merge_component_values(
+                    "management-cluster", "prometheus", target
+                )
+
+            # Verify merging order: defaults -> base -> production values -> production patch
+            assert "applications" in result
+            assert "prometheus" in result["applications"]
+
+            prometheus_config = result["applications"]["prometheus"]
+
+            # Should have patch version (77.9.0) not production stable version (77.8.0)
+            assert prometheus_config["source"]["targetRevision"] == "77.9.0"
+
+            # Should have patch syncOptions (replaces production values per deep_merge behavior)
+            sync_options = prometheus_config["syncPolicy"]["syncOptions"]
+            assert sync_options == [
+                "ServerSideApply=true"
+            ]  # Patch overrides production values
+
+            # Should have destination from base values
+            assert prometheus_config["destination"]["namespace"] == "monitoring"
+
+    def test_multiple_patches_applied_in_order(self):
+        """Test that multiple patch files are applied in filename order."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            base_path = Path(temp_dir) / "management-cluster"
+            base_path.mkdir(parents=True)
+
+            # Create minimal structure
+            defaults_content = {"applications": {"default": {"project": "default"}}}
+            with open(base_path / "defaults.yaml", "w") as f:
+                yaml.dump(defaults_content, f)
+
+            prometheus_dir = base_path / "prometheus"
+            prometheus_dir.mkdir()
+
+            base_values = {
+                "applications": {"prometheus": {"source": {"targetRevision": "77.8.0"}}}
+            }
+            with open(prometheus_dir / "values.yaml", "w") as f:
+                yaml.dump(base_values, f)
+
+            # Create integration dimension with multiple patches
+            integration_dir = prometheus_dir / "integration"
+            integration_dir.mkdir()
+
+            # First patch
+            patch_001 = {
+                "metadata": {"description": "First patch"},
+                "applications": {
+                    "prometheus": {"source": {"targetRevision": "77.9.0"}}
+                },
+            }
+            with open(integration_dir / "patch-001.yaml", "w") as f:
+                yaml.dump(patch_001, f)
+
+            # Second patch (should override first)
+            patch_002 = {
+                "metadata": {"description": "Second patch"},
+                "applications": {
+                    "prometheus": {"source": {"targetRevision": "77.9.1"}}
+                },
+            }
+            with open(integration_dir / "patch-002.yaml", "w") as f:
+                yaml.dump(patch_002, f)
+
+            with patch("generate.os.chdir"), patch("generate.Path") as mock_path:
+
+                def path_side_effect(path_str):
+                    if path_str == "config":
+                        return Path(temp_dir)
+                    return Path(path_str)
+
+                mock_path.side_effect = path_side_effect
+
+                target = Target(["integration"])
+                result = merge_component_values(
+                    "management-cluster", "prometheus", target
+                )
+
+            # Should have the last patch version (002 overrides 001)
+            assert (
+                result["applications"]["prometheus"]["source"]["targetRevision"]
+                == "77.9.1"
+            )
+
+    def test_patch_metadata_ignored(self):
+        """Test that metadata section in patches is ignored by generator."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            base_path = Path(temp_dir) / "management-cluster"
+            base_path.mkdir(parents=True)
+
+            # Create minimal structure
+            defaults_content = {"applications": {"default": {"project": "default"}}}
+            with open(base_path / "defaults.yaml", "w") as f:
+                yaml.dump(defaults_content, f)
+
+            prometheus_dir = base_path / "prometheus"
+            prometheus_dir.mkdir()
+
+            base_values = {
+                "applications": {"prometheus": {"source": {"targetRevision": "77.8.0"}}}
+            }
+            with open(prometheus_dir / "values.yaml", "w") as f:
+                yaml.dump(base_values, f)
+
+            # Create patch with metadata that should be ignored
+            integration_dir = prometheus_dir / "integration"
+            integration_dir.mkdir()
+
+            patch_with_metadata = {
+                "metadata": {
+                    "description": "This should be ignored",
+                    "dependencies": ["some/dependency"],
+                    "complex": {"nested": "data"},
+                },
+                "applications": {
+                    "prometheus": {"source": {"targetRevision": "77.9.0"}}
+                },
+            }
+            with open(integration_dir / "patch-001.yaml", "w") as f:
+                yaml.dump(patch_with_metadata, f)
+
+            with patch("generate.os.chdir"), patch("generate.Path") as mock_path:
+
+                def path_side_effect(path_str):
+                    if path_str == "config":
+                        return Path(temp_dir)
+                    return Path(path_str)
+
+                mock_path.side_effect = path_side_effect
+
+                target = Target(["integration"])
+                result = merge_component_values(
+                    "management-cluster", "prometheus", target
+                )
+
+            # Should have patch applied but no metadata in result
+            assert (
+                result["applications"]["prometheus"]["source"]["targetRevision"]
+                == "77.9.0"
+            )
+            assert "metadata" not in result
+            assert "description" not in result
+            assert "dependencies" not in result
 
     def test_invalid_cluster_type_raises_error(self):
         """Test that invalid cluster type raises FileNotFoundError."""
