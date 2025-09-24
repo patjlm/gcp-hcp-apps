@@ -16,7 +16,7 @@ applications:
       namespace: monitoring
     source:
       repoURL: https://prometheus-community.github.io/helm-charts
-      targetRevision: 77.9.1
+      targetRevision: 77.9.5
       chart: kube-prometheus-stack
       helm:
         valuesObject:
