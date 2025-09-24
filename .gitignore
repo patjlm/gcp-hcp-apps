@@ -6,6 +6,9 @@ __pycache__/
 .Python
 *.so
 
+.python-version
+uv.lock
+
 # Pytest cache
 .pytest_cache/
 

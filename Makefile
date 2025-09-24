@@ -6,7 +6,7 @@ generate:
 
 # Run unit and integration tests
 test:
-	uv run hack/test_generate.py -v
+	uv run pytest hack -v
 
 # Check that generated files are current (for CI/CD)
 check: generate
