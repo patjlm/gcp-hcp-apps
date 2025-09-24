@@ -1,0 +1,672 @@
+#!/usr/bin/env python3
+# /// script
+# dependencies = ["pyyaml", "pytest"]
+# ///
+
+"""
+Unit tests for patch promotion tool.
+
+Run with: uv run pytest hack/test_promote.py -v
+"""
+
+import os
+import sys
+import tempfile
+from pathlib import Path
+from unittest.mock import patch
+
+import pytest
+
+# Add the hack directory to Python path so we can import promote
+sys.path.insert(0, os.path.dirname(__file__))
+
+import promote
+
+
+def create_test_config():
+    """Create a simple test configuration."""
+    return {
+        "dimensions": ["environments", "sectors", "regions"],
+        "sequence": {
+            "environments": [
+                {
+                    "name": "env1",
+                    "sectors": [
+                        {
+                            "name": "sector1",
+                            "regions": [{"name": "region1"}, {"name": "region2"}],
+                        },
+                        {"name": "sector2", "regions": [{"name": "region1"}]},
+                    ],
+                },
+                {
+                    "name": "env2",
+                    "sectors": [{"name": "sector1", "regions": [{"name": "region1"}]}],
+                },
+            ]
+        },
+    }
+
+
+def create_test_filesystem(base_dir, patches):
+    """Create test filesystem with patches at specified locations."""
+    app_dir = base_dir / "config" / "management-cluster" / "test-app"
+
+    for patch_location in patches:
+        patch_dir = app_dir / Path(*patch_location.split("/"))
+        patch_dir.mkdir(parents=True, exist_ok=True)
+        (patch_dir / "patch-001.yaml").write_text("test: patch")
+
+    return app_dir
+
+
+def test_gap_detection_no_gaps():
+    """Test gap detection with proper sequence - no gaps."""
+    config = create_test_config()
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        base_dir = Path(tmp_dir)
+
+        # Create first patch - should be valid (no previous siblings)
+        patches = ["env1/sector1/region1"]
+        create_test_filesystem(base_dir, patches)
+
+        # Mock the config object
+        mock_config = promote.Config()
+        mock_config.config = config
+        mock_config.dimensions = config["dimensions"]
+        mock_config.sequence = config["sequence"]
+        mock_config.root = base_dir / "config"
+
+        with (
+            patch("promote.config", mock_config),
+            patch.object(Path, "cwd", return_value=base_dir),
+        ):
+            # Should detect no gaps
+            os.chdir(base_dir)
+            # Get patches and test gap detection
+            all_patches = list(
+                promote.find_all_patches("management-cluster", "test-app", "patch-001")
+            )
+            # No exception should be raised for valid sequence
+            promote.detect_gaps(all_patches)
+
+
+def test_gap_detection_region_gap():
+    """Test gap detection with missing region - should detect gap."""
+    config = create_test_config()
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        base_dir = Path(tmp_dir)
+
+        # Create patch in region2 but missing region1 - this is a gap!
+        patches = ["env1/sector1/region2"]
+        create_test_filesystem(base_dir, patches)
+
+        # Mock the config object
+        mock_config = promote.Config()
+        mock_config.config = config
+        mock_config.dimensions = config["dimensions"]
+        mock_config.sequence = config["sequence"]
+        mock_config.root = base_dir / "config"
+
+        with (
+            patch("promote.config", mock_config),
+            patch.object(Path, "cwd", return_value=base_dir),
+        ):
+            os.chdir(base_dir)
+            # Get patches and test gap detection
+            all_patches = list(
+                promote.find_all_patches("management-cluster", "test-app", "patch-001")
+            )
+            # Should raise ValueError for gap
+            with pytest.raises(ValueError) as exc_info:
+                promote.detect_gaps(all_patches)
+
+            gap_error = str(exc_info.value)
+            assert "env1/sector1/region2" in gap_error
+            assert "env1/sector1/region1" in gap_error
+
+
+def test_gap_detection_sector_gap():
+    """Test gap detection with missing sector - should detect gap."""
+    config = create_test_config()
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        base_dir = Path(tmp_dir)
+
+        # Create patch in sector2 but missing sector1 - this is a gap!
+        patches = ["env1/sector2"]
+        create_test_filesystem(base_dir, patches)
+
+        # Mock the config object
+        mock_config = promote.Config()
+        mock_config.config = config
+        mock_config.dimensions = config["dimensions"]
+        mock_config.sequence = config["sequence"]
+        mock_config.root = base_dir / "config"
+
+        with (
+            patch("promote.config", mock_config),
+            patch.object(Path, "cwd", return_value=base_dir),
+        ):
+            os.chdir(base_dir)
+            # Get patches and test gap detection
+            all_patches = list(
+                promote.find_all_patches("management-cluster", "test-app", "patch-001")
+            )
+            # Should raise ValueError for gap
+            with pytest.raises(ValueError) as exc_info:
+                promote.detect_gaps(all_patches)
+
+            gap_error = str(exc_info.value)
+            assert "env1/sector2" in gap_error
+            assert "env1/sector1" in gap_error
+
+
+def test_gap_detection_environment_gap():
+    """Test gap detection with missing environment - should detect gap."""
+    config = create_test_config()
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        base_dir = Path(tmp_dir)
+
+        # Create patch in env2 but missing env1 - this is a gap!
+        patches = ["env2/sector1"]
+        create_test_filesystem(base_dir, patches)
+
+        # Mock the config object
+        mock_config = promote.Config()
+        mock_config.config = config
+        mock_config.dimensions = config["dimensions"]
+        mock_config.sequence = config["sequence"]
+        mock_config.root = base_dir / "config"
+
+        with (
+            patch("promote.config", mock_config),
+            patch.object(Path, "cwd", return_value=base_dir),
+        ):
+            os.chdir(base_dir)
+            # Get patches and test gap detection
+            all_patches = list(
+                promote.find_all_patches("management-cluster", "test-app", "patch-001")
+            )
+            # Should raise ValueError for gap
+            with pytest.raises(ValueError) as exc_info:
+                promote.detect_gaps(all_patches)
+
+            gap_error = str(exc_info.value)
+            assert "env2" in gap_error
+            assert "env1" in gap_error
+
+
+def test_walk_function():
+    """Test what the walk function actually generates."""
+    config = create_test_config()
+
+    # Test all possible walk paths
+    all_paths = list(promote.walk(config["sequence"], config["dimensions"], []))
+
+    expected_paths = [
+        ["env1"],
+        ["env1", "sector1"],
+        ["env1", "sector1", "region1"],
+        ["env1", "sector1", "region2"],
+        ["env1", "sector2"],
+        ["env1", "sector2", "region1"],
+        ["env2"],
+        ["env2", "sector1"],
+        ["env2", "sector1", "region1"],
+    ]
+
+    assert all_paths == expected_paths
+
+
+def create_real_test_config():
+    """Create realistic test configuration matching the actual fleet."""
+    return {
+        "dimensions": ["environments", "sectors", "regions"],
+        "sequence": {
+            "environments": [
+                {
+                    "name": "integration",
+                    "sectors": [
+                        {
+                            "name": "int-sector-1",
+                            "regions": [
+                                {"name": "us-central1"},
+                                {"name": "europe-west1"},
+                            ],
+                        },
+                        {"name": "int-sector-2", "regions": [{"name": "us-central1"}]},
+                    ],
+                },
+                {
+                    "name": "stage",
+                    "sectors": [
+                        {"name": "stage-sector-1", "regions": [{"name": "us-east1"}]},
+                        {
+                            "name": "stage-sector-2",
+                            "regions": [{"name": "europe-west1"}],
+                        },
+                    ],
+                },
+                {
+                    "name": "production",
+                    "sectors": [
+                        {"name": "prod-canary", "regions": [{"name": "us-east1"}]},
+                        {
+                            "name": "prod-sector-1",
+                            "regions": [{"name": "us-east1"}, {"name": "europe-east1"}],
+                        },
+                    ],
+                },
+            ]
+        },
+    }
+
+
+def test_real_config_gap_detection_region_gap():
+    """Test region gap detection with realistic config."""
+    config = create_real_test_config()
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        base_dir = Path(tmp_dir)
+
+        # Create patch in europe-west1 but missing us-central1 - this is a gap!
+        patches = ["integration/int-sector-1/europe-west1"]
+        create_test_filesystem(base_dir, patches)
+
+        mock_config = promote.Config()
+        mock_config.config = config
+        mock_config.dimensions = config["dimensions"]
+        mock_config.sequence = config["sequence"]
+        mock_config.root = base_dir / "config"
+
+        with (
+            patch("promote.config", mock_config),
+            patch.object(Path, "cwd", return_value=base_dir),
+        ):
+            os.chdir(base_dir)
+            all_patches = list(
+                promote.find_all_patches("management-cluster", "test-app", "patch-001")
+            )
+            with pytest.raises(ValueError) as exc_info:
+                promote.detect_gaps(all_patches)
+
+            gap_error = str(exc_info.value)
+            assert "integration/int-sector-1/europe-west1" in gap_error
+            assert "integration/int-sector-1/us-central1" in gap_error
+
+
+def test_real_config_gap_detection_sector_gap():
+    """Test sector gap detection with realistic config."""
+    config = create_real_test_config()
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        base_dir = Path(tmp_dir)
+
+        # Create patch in int-sector-2 but missing int-sector-1 - this is a gap!
+        patches = ["integration/int-sector-2"]
+        create_test_filesystem(base_dir, patches)
+
+        mock_config = promote.Config()
+        mock_config.config = config
+        mock_config.dimensions = config["dimensions"]
+        mock_config.sequence = config["sequence"]
+        mock_config.root = base_dir / "config"
+
+        with (
+            patch("promote.config", mock_config),
+            patch.object(Path, "cwd", return_value=base_dir),
+        ):
+            os.chdir(base_dir)
+            all_patches = list(
+                promote.find_all_patches("management-cluster", "test-app", "patch-001")
+            )
+            with pytest.raises(ValueError) as exc_info:
+                promote.detect_gaps(all_patches)
+
+            gap_error = str(exc_info.value)
+            assert "integration/int-sector-2" in gap_error
+            assert "integration/int-sector-1/us-central1" in gap_error
+
+
+def test_real_config_gap_detection_environment_gap():
+    """Test environment gap detection with realistic config."""
+    config = create_real_test_config()
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        base_dir = Path(tmp_dir)
+
+        # Create patch in stage but missing integration - this is a gap!
+        patches = ["stage"]
+        create_test_filesystem(base_dir, patches)
+
+        mock_config = promote.Config()
+        mock_config.config = config
+        mock_config.dimensions = config["dimensions"]
+        mock_config.sequence = config["sequence"]
+        mock_config.root = base_dir / "config"
+
+        with (
+            patch("promote.config", mock_config),
+            patch.object(Path, "cwd", return_value=base_dir),
+        ):
+            os.chdir(base_dir)
+            all_patches = list(
+                promote.find_all_patches("management-cluster", "test-app", "patch-001")
+            )
+            with pytest.raises(ValueError) as exc_info:
+                promote.detect_gaps(all_patches)
+
+            gap_error = str(exc_info.value)
+            assert "stage" in gap_error
+            assert "integration/int-sector-1/us-central1" in gap_error
+
+
+def test_valid_region_to_region_promotion():
+    """Test valid region-to-region promotion."""
+    config = create_real_test_config()
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        base_dir = Path(tmp_dir)
+
+        # Create patch in first region
+        patches = ["integration/int-sector-1/us-central1"]
+        create_test_filesystem(base_dir, patches)
+
+        mock_config = promote.Config()
+        mock_config.config = config
+        mock_config.dimensions = config["dimensions"]
+        mock_config.sequence = config["sequence"]
+        mock_config.root = base_dir / "config"
+
+        with (
+            patch("promote.config", mock_config),
+            patch.object(Path, "cwd", return_value=base_dir),
+        ):
+            os.chdir(base_dir)
+            all_patches = list(
+                promote.find_all_patches("management-cluster", "test-app", "patch-001")
+            )
+
+            # Should not raise any errors (no gaps)
+            promote.detect_gaps(all_patches)
+
+            # Should promote to next region
+            next_location = promote.get_next_location(
+                all_patches, "management-cluster", "test-app"
+            )
+            expected = (
+                base_dir
+                / "config/management-cluster/test-app/integration/int-sector-1/europe-west1/patch-001.yaml"
+            )
+            assert next_location == expected
+
+
+def test_valid_region_to_sector_promotion():
+    """Test valid promotion from last region in sector to next sector."""
+    config = create_real_test_config()
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        base_dir = Path(tmp_dir)
+
+        # Create patches in both regions of first sector
+        patches = [
+            "integration/int-sector-1/us-central1",
+            "integration/int-sector-1/europe-west1",
+        ]
+        create_test_filesystem(base_dir, patches)
+
+        mock_config = promote.Config()
+        mock_config.config = config
+        mock_config.dimensions = config["dimensions"]
+        mock_config.sequence = config["sequence"]
+        mock_config.root = base_dir / "config"
+
+        with (
+            patch("promote.config", mock_config),
+            patch.object(Path, "cwd", return_value=base_dir),
+        ):
+            os.chdir(base_dir)
+            all_patches = list(
+                promote.find_all_patches("management-cluster", "test-app", "patch-001")
+            )
+
+            # Should not raise any errors (no gaps)
+            promote.detect_gaps(all_patches)
+
+            # Should promote to next sector (respecting DEFAULT_PROMOTION_LEVEL)
+            next_location = promote.get_next_location(
+                all_patches, "management-cluster", "test-app"
+            )
+            expected = (
+                base_dir
+                / "config/management-cluster/test-app/integration/int-sector-2/patch-001.yaml"
+            )
+            assert next_location == expected
+
+
+def test_valid_sector_to_sector_promotion():
+    """Test valid sector-to-sector promotion."""
+    config = create_real_test_config()
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        base_dir = Path(tmp_dir)
+
+        # Create sector-level patch
+        patches = ["integration/int-sector-1"]
+        create_test_filesystem(base_dir, patches)
+
+        mock_config = promote.Config()
+        mock_config.config = config
+        mock_config.dimensions = config["dimensions"]
+        mock_config.sequence = config["sequence"]
+        mock_config.root = base_dir / "config"
+
+        with (
+            patch("promote.config", mock_config),
+            patch.object(Path, "cwd", return_value=base_dir),
+        ):
+            os.chdir(base_dir)
+            all_patches = list(
+                promote.find_all_patches("management-cluster", "test-app", "patch-001")
+            )
+
+            # Should not raise any errors (no gaps)
+            promote.detect_gaps(all_patches)
+
+            # Should promote to next sector
+            next_location = promote.get_next_location(
+                all_patches, "management-cluster", "test-app"
+            )
+            expected = (
+                base_dir
+                / "config/management-cluster/test-app/integration/int-sector-2/patch-001.yaml"
+            )
+            assert next_location == expected
+
+
+def test_valid_environment_to_environment_promotion():
+    """Test valid cross-environment promotion."""
+    config = create_real_test_config()
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        base_dir = Path(tmp_dir)
+
+        # Create environment-level patch
+        patches = ["integration"]
+        create_test_filesystem(base_dir, patches)
+
+        mock_config = promote.Config()
+        mock_config.config = config
+        mock_config.dimensions = config["dimensions"]
+        mock_config.sequence = config["sequence"]
+        mock_config.root = base_dir / "config"
+
+        with (
+            patch("promote.config", mock_config),
+            patch.object(Path, "cwd", return_value=base_dir),
+        ):
+            os.chdir(base_dir)
+            all_patches = list(
+                promote.find_all_patches("management-cluster", "test-app", "patch-001")
+            )
+
+            # Should not raise any errors (no gaps)
+            promote.detect_gaps(all_patches)
+
+            # Should promote to next environment at default level (sector)
+            next_location = promote.get_next_location(
+                all_patches, "management-cluster", "test-app"
+            )
+            expected = (
+                base_dir
+                / "config/management-cluster/test-app/stage/stage-sector-1/patch-001.yaml"
+            )
+            assert next_location == expected
+
+
+def test_no_patches_found():
+    """Test error when no patches exist."""
+    config = create_real_test_config()
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        base_dir = Path(tmp_dir)
+
+        # Create empty filesystem (no patches)
+        app_dir = base_dir / "config" / "management-cluster" / "test-app"
+        app_dir.mkdir(parents=True, exist_ok=True)
+
+        mock_config = promote.Config()
+        mock_config.config = config
+        mock_config.dimensions = config["dimensions"]
+        mock_config.sequence = config["sequence"]
+        mock_config.root = base_dir / "config"
+
+        with (
+            patch("promote.config", mock_config),
+            patch.object(Path, "cwd", return_value=base_dir),
+        ):
+            os.chdir(base_dir)
+            all_patches = list(
+                promote.find_all_patches("management-cluster", "test-app", "patch-001")
+            )
+            assert len(all_patches) == 0
+
+
+def test_end_of_sequence():
+    """Test end of sequence detection."""
+    config = create_real_test_config()
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        base_dir = Path(tmp_dir)
+
+        # Create patches throughout the entire sequence to reach the final position
+        patches = [
+            "integration",
+            "stage/stage-sector-1",
+            "stage/stage-sector-2",
+            "production/prod-canary",
+            "production/prod-sector-1/us-east1",
+            "production/prod-sector-1/europe-east1",
+        ]
+        create_test_filesystem(base_dir, patches)
+
+        mock_config = promote.Config()
+        mock_config.config = config
+        mock_config.dimensions = config["dimensions"]
+        mock_config.sequence = config["sequence"]
+        mock_config.root = base_dir / "config"
+
+        with (
+            patch("promote.config", mock_config),
+            patch.object(Path, "cwd", return_value=base_dir),
+        ):
+            os.chdir(base_dir)
+            all_patches = list(
+                promote.find_all_patches("management-cluster", "test-app", "patch-001")
+            )
+
+            # Should not raise any errors (no gaps)
+            promote.detect_gaps(all_patches)
+
+            # Should exit with error for end of sequence
+            with pytest.raises(SystemExit):
+                promote.get_next_location(all_patches, "management-cluster", "test-app")
+
+
+def test_complete_promotion_flow():
+    """Test complete promotion flow through all steps."""
+    config = create_real_test_config()
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        base_dir = Path(tmp_dir)
+
+        mock_config = promote.Config()
+        mock_config.config = config
+        mock_config.dimensions = config["dimensions"]
+        mock_config.sequence = config["sequence"]
+        mock_config.root = base_dir / "config"
+
+        with (
+            patch("promote.config", mock_config),
+            patch.object(Path, "cwd", return_value=base_dir),
+        ):
+            os.chdir(base_dir)
+
+            # Step 1: Start with first region
+            patches = ["integration/int-sector-1/us-central1"]
+            create_test_filesystem(base_dir, patches)
+            all_patches = list(
+                promote.find_all_patches("management-cluster", "test-app", "patch-001")
+            )
+            next_location = promote.get_next_location(
+                all_patches, "management-cluster", "test-app"
+            )
+            expected = (
+                base_dir
+                / "config/management-cluster/test-app/integration/int-sector-1/europe-west1/patch-001.yaml"
+            )
+            assert next_location == expected
+
+            # Step 2: Add second region, should promote to next sector
+            patches.append("integration/int-sector-1/europe-west1")
+            create_test_filesystem(base_dir, patches)
+            all_patches = list(
+                promote.find_all_patches("management-cluster", "test-app", "patch-001")
+            )
+            next_location = promote.get_next_location(
+                all_patches, "management-cluster", "test-app"
+            )
+            expected = (
+                base_dir
+                / "config/management-cluster/test-app/integration/int-sector-2/patch-001.yaml"
+            )
+            assert next_location == expected
+
+            # Step 3: Add sector, should promote to cross-environment
+            patches.append("integration/int-sector-2")
+            create_test_filesystem(base_dir, patches)
+            all_patches = list(
+                promote.find_all_patches("management-cluster", "test-app", "patch-001")
+            )
+            next_location = promote.get_next_location(
+                all_patches, "management-cluster", "test-app"
+            )
+            expected = (
+                base_dir
+                / "config/management-cluster/test-app/stage/stage-sector-1/patch-001.yaml"
+            )
+            assert next_location == expected
+
+
+if __name__ == "__main__":
+    # Run tests with improved gap detection
+    test_gap_detection_no_gaps()
+    test_gap_detection_region_gap()
+    test_gap_detection_sector_gap()
+    test_gap_detection_environment_gap()
+
+    print("✅ All tests passed!")
