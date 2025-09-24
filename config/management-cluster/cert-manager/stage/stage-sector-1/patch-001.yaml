@@ -1,0 +1,7 @@
+metadata:
+  description: "Upgrade cert-manager to v1.16.0 in stage sector 1"
+
+applications:
+  cert-manager:
+    source:
+      targetRevision: "v1.16.0"
