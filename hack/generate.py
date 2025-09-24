@@ -58,6 +58,22 @@ def deep_merge(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]
     return result
 
 
+def get_patch_paths(patch_data: Dict[str, Any]) -> List[str]:
+    """Extract all YAML paths that this patch modifies."""
+    paths: List[str] = []
+
+    def extract_paths(data: Dict[str, Any], prefix: str = "") -> None:
+        for key, value in data.items():
+            current_path = f"{prefix}.{key}" if prefix else key
+            if isinstance(value, dict):
+                extract_paths(value, current_path)
+            else:
+                paths.append(current_path)
+
+    extract_paths(patch_data)
+    return paths
+
+
 def discover_targets(config: Dict[str, Any]) -> List[Target]:
     """Discover all dimensional combinations from configurable hierarchy.
 
@@ -206,11 +222,24 @@ def merge_component_values(
 
         # Apply patches second (in filename order)
         if dimension_dir.exists():
+            applied_patches: List[tuple[Path, List[str]]] = []
+
             for patch_file in sorted(dimension_dir.glob("patch-*.yaml")):
                 patch_data = load_yaml(patch_file)
                 # Drop metadata section, apply rest using existing deep_merge
                 if "metadata" in patch_data:
                     del patch_data["metadata"]
+
+                # Check for conflicts with previously applied patches
+                patch_paths = get_patch_paths(patch_data)
+                for prev_patch_file, prev_paths in applied_patches:
+                    conflicts = set(patch_paths) & set(prev_paths)
+                    if conflicts:
+                        print("WARNING: Patch conflict detected:")
+                        print(f"  {patch_file} conflicts with {prev_patch_file}")
+                        print(f"  Conflicting paths: {', '.join(sorted(conflicts))}")
+
+                applied_patches.append((patch_file, patch_paths))
                 merged = deep_merge(merged, patch_data)
 
     return merged

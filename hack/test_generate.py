@@ -708,6 +708,114 @@ class TestValidation:
             assert "description" not in result
             assert "dependencies" not in result
 
+    def test_patch_conflict_detection(self):
+        """Test that patch conflicts are detected and reported."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            base_path = Path(temp_dir) / "management-cluster"
+            base_path.mkdir(parents=True)
+
+            # Create minimal structure
+            defaults_content = {"applications": {"default": {"project": "default"}}}
+            with open(base_path / "defaults.yaml", "w") as f:
+                yaml.dump(defaults_content, f)
+
+            prometheus_dir = base_path / "prometheus"
+            prometheus_dir.mkdir()
+
+            base_values = {
+                "applications": {"prometheus": {"source": {"targetRevision": "77.8.0"}}}
+            }
+            with open(prometheus_dir / "values.yaml", "w") as f:
+                yaml.dump(base_values, f)
+
+            # Create integration dimension with conflicting patches
+            integration_dir = prometheus_dir / "integration"
+            integration_dir.mkdir()
+
+            # First patch
+            patch_001 = {
+                "applications": {
+                    "prometheus": {"source": {"targetRevision": "77.9.0"}}
+                },
+            }
+            with open(integration_dir / "patch-001.yaml", "w") as f:
+                yaml.dump(patch_001, f)
+
+            # Conflicting patch (same path)
+            patch_002 = {
+                "applications": {
+                    "prometheus": {"source": {"targetRevision": "77.9.1"}}
+                },
+            }
+            with open(integration_dir / "patch-002.yaml", "w") as f:
+                yaml.dump(patch_002, f)
+
+            # Capture printed warnings
+            import io
+            from contextlib import redirect_stdout
+
+            with patch("generate.os.chdir"), patch("generate.Path") as mock_path:
+
+                def path_side_effect(path_str):
+                    if path_str == "config":
+                        return Path(temp_dir)
+                    return Path(path_str)
+
+                mock_path.side_effect = path_side_effect
+
+                # Capture print output
+                captured_output = io.StringIO()
+                with redirect_stdout(captured_output):
+                    target = Target(["integration"])
+                    result = merge_component_values(
+                        "management-cluster", "prometheus", target
+                    )
+
+                # Check that conflict was detected
+                output = captured_output.getvalue()
+                assert "WARNING: Patch conflict detected:" in output
+                assert "patch-002.yaml conflicts with" in output
+                assert "patch-001.yaml" in output
+                assert "applications.prometheus.source.targetRevision" in output
+
+                # Should have the last patch version (002 overrides 001)
+                assert (
+                    result["applications"]["prometheus"]["source"]["targetRevision"]
+                    == "77.9.1"
+                )
+
+    def test_get_patch_paths_function(self):
+        """Test the patch path extraction function."""
+        from generate import get_patch_paths
+
+        # Simple patch
+        patch_data = {
+            "applications": {"prometheus": {"source": {"targetRevision": "77.9.0"}}}
+        }
+
+        paths = get_patch_paths(patch_data)
+        expected_paths = ["applications.prometheus.source.targetRevision"]
+        assert paths == expected_paths
+
+        # Complex patch with multiple paths
+        complex_patch = {
+            "applications": {
+                "prometheus": {
+                    "source": {"targetRevision": "77.9.0"},
+                    "syncPolicy": {"syncOptions": ["ServerSideApply=true"]},
+                },
+                "cert-manager": {"source": {"targetRevision": "v1.16.0"}},
+            }
+        }
+
+        paths = get_patch_paths(complex_patch)
+        expected_paths = [
+            "applications.prometheus.source.targetRevision",
+            "applications.prometheus.syncPolicy.syncOptions",
+            "applications.cert-manager.source.targetRevision",
+        ]
+        assert sorted(paths) == sorted(expected_paths)
+
     def test_invalid_cluster_type_raises_error(self):
         """Test that invalid cluster type raises FileNotFoundError."""
         with pytest.raises(FileNotFoundError, match="Config directory not found"):
