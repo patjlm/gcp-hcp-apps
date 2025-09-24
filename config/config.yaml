@@ -26,6 +26,10 @@ sequence:
           regions:
             - name: us-east1
             - name: europe-west1
+        - name: stage-sector-2
+          promotion: automated
+          regions:
+            - name: ap-east1
     - name: production
       promotion: manual
       sectors:

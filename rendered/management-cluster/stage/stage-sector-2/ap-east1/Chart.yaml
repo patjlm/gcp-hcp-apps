@@ -1,0 +1,6 @@
+apiVersion: v2
+name: management-cluster-stage-stage-sector-2-ap-east1
+description: Generated ArgoCD resources for management-cluster/stage/stage-sector-2/ap-east1
+type: application
+version: 0.1.0
+appVersion: '1.0'

@@ -2,29 +2,28 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: cert-manager
+  name: prometheus
   namespace: argocd
   finalizers:
   - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
   source:
-    chart: cert-manager
+    chart: kube-prometheus-stack
     helm:
       valuesObject:
-        cainjector:
-          enabled: true
-        crds:
-          enabled: true
-        prometheus:
-          enabled: true
-        webhook:
-          securePort: 10260
-    repoURL: https://charts.jetstack.io
-    targetRevision: v1.16.0
+        cluster:
+          projectId: '{{ .Values.cluster.projectId }}'
+          region: '{{ .Values.cluster.region }}'
+          vpcId: '{{ .Values.cluster.vpcId }}'
+        grafana:
+          service:
+            type: ClusterIP
+    repoURL: https://prometheus-community.github.io/helm-charts
+    targetRevision: 77.9.1
   destination:
     name: '{{ .Values.cluster.name }}'
-    namespace: cert-manager
+    namespace: monitoring
   syncPolicy:
     automated:
       prune: false
