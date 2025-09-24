@@ -47,11 +47,12 @@ graph TD
     B --> C["environment × sector × region matrix"]
 
     D[config/management-cluster/app/values.yaml] --> E[Base application config]
-    F[config/management-cluster/app/production/values.yaml] --> G[Environment overrides]
-    H[config/management-cluster/application-defaults.yaml] --> I[Default ArgoCD settings]
+    F[config/management-cluster/app/production/override.yaml] --> G[Environment overrides]
+    P[config/management-cluster/app/production/patch-*.yaml] --> Q[Temporary patches]
+    H[config/management-cluster/defaults.yaml] --> I[Default ArgoCD settings]
 
     J[Generator merges values] --> K[Deep merge precedence]
-    K --> L["defaults → base → env → sector → region"]
+    K --> L["defaults → base → overrides → patches"]
 
     E --> J
     G --> J
@@ -190,12 +191,12 @@ uv run hack/generate.py
 
 ### Environment Overrides
 
-Create environment-specific configurations:
+Create permanent dimensional configurations:
 
 ```bash
 # Production overrides
 mkdir -p config/management-cluster/my-app/production
-cat > config/management-cluster/my-app/production/values.yaml << EOF
+cat > config/management-cluster/my-app/production/override.yaml << EOF
 applications:
   my-app:
     source:
@@ -209,6 +210,55 @@ applications:
               cpu: "500m"
 EOF
 ```
+
+### Patch System
+
+The patch system enables temporary changes that roll through the fleet:
+
+#### File Types
+- **`values.yaml`**: Base application configuration (permanent)
+- **`override.yaml`**: Permanent dimensional overrides (permanent)
+- **`patch-NNN.yaml`**: Temporary rolling changes (temporary)
+
+#### Creating Patches
+
+```bash
+# Environment-level patch
+cat > config/management-cluster/cert-manager/integration/patch-001.yaml << EOF
+metadata:
+  description: "Upgrade cert-manager to v1.16.0"
+
+applications:
+  cert-manager:
+    source:
+      targetRevision: "v1.16.0"
+EOF
+
+# Region-level patch
+cat > config/management-cluster/prometheus/production/prod-canary/us-east1/patch-001.yaml << EOF
+metadata:
+  description: "Enable monitoring for canary testing"
+
+applications:
+  prometheus:
+    source:
+      helm:
+        valuesObject:
+          serviceMonitor:
+            enabled: true
+EOF
+```
+
+#### Progressive Rollout
+
+Patches progress through dimensions manually:
+
+1. **Start**: Create patch in specific region
+2. **Validate**: Test the change in that region
+3. **Expand**: Copy patch to other regions in sector
+4. **Consolidate**: Move patch to sector level, remove region patches
+5. **Promote**: Move patch to environment level
+6. **Integrate**: Merge into base `values.yaml`, remove all patches
 
 ### Fleet Configuration
 
@@ -291,7 +341,7 @@ fi
 The Python generator (`hack/generate.py`):
 
 - **Target Discovery**: Finds all environment/sector/region combinations from `config.yaml`
-- **Value Merging**: Deep merge with precedence: defaults → base → environment overrides
+- **Value Merging**: Deep merge with precedence: defaults → base → environment → sector → region (override.yaml then patch-*.yaml at each level)
 - **Template Processing**: Uses Helm to generate final ArgoCD Applications
 - **Validation**: Fails fast on missing mandatory files
 - **Output**: Creates one YAML file per application in `rendered/` hierarchy
@@ -299,11 +349,11 @@ The Python generator (`hack/generate.py`):
 
 ### Value Merging Order
 
-1. Application defaults (`application-defaults.yaml`)
+1. Application defaults (`defaults.yaml`)
 2. Base application values (`values.yaml`)
-3. Environment overrides (`production/values.yaml`)
-4. Sector overrides (if exist)
-5. Region overrides (if exist)
+3. Environment level: `override.yaml` then `patch-*.yaml`
+4. Sector level: `override.yaml` then `patch-*.yaml`
+5. Region level: `override.yaml` then `patch-*.yaml`
 
 ## Testing
 

@@ -15,7 +15,8 @@ config/
     └── {app-name}/                   # Individual application directories
         ├── metadata.yaml             # Application metadata
         ├── values.yaml               # Base application configuration
-        └── {environment}/values.yaml # Environment-specific overrides
+        ├── {environment}/override.yaml # Permanent dimensional overrides
+        └── {environment}/patch-*.yaml  # Temporary rolling changes
 ```
 
 ### 2. Fleet Generation Process
@@ -52,11 +53,11 @@ gcp-hcp-apps/
 │       ├── argocd/                   # ArgoCD self-management
 │       │   ├── metadata.yaml
 │       │   ├── values.yaml
-│       │   └── production/values.yaml
+│       │   └── production/override.yaml
 │       ├── prometheus/               # Monitoring stack
 │       │   ├── metadata.yaml
 │       │   ├── values.yaml
-│       │   └── production/values.yaml
+│       │   └── production/override.yaml
 │       ├── cert-manager/             # Certificate management
 │       │   ├── metadata.yaml
 │       │   └── values.yaml
@@ -89,7 +90,8 @@ gcp-hcp-apps/
 - **config.yaml**: Defines the dimensional hierarchy (environments, sectors, regions) and cluster types
 - **application-defaults.yaml**: Common ArgoCD Application settings applied to all applications
 - **{app}/values.yaml**: Base application configuration with Helm chart references
-- **{app}/{env}/values.yaml**: Environment-specific overrides for production stability
+- **{app}/{env}/override.yaml**: Permanent dimensional overrides for production stability
+- **{app}/{env}/patch-*.yaml**: Temporary rolling changes
 
 ### Fleet Generator (hack/generate.py)
 - **Target Discovery**: Scans config.yaml to generate all dimensional combinations
@@ -112,7 +114,7 @@ gcp-hcp-apps/
 
 ### 1. Configuration Changes
 ```
-Developer modifies config/management-cluster/prometheus/production/values.yaml
+Developer modifies config/management-cluster/prometheus/production/override.yaml or creates patch files
 ├── Updates production-specific Prometheus configuration
 └── Environment-specific overrides for production clusters
 ```

@@ -13,11 +13,16 @@ This is the **gcp-hcp-apps** repository - A GitOps fleet management system for t
 - **config/**: Source configuration with dimensional hierarchy
   - `config.yaml`: Global fleet configuration defining environments/sectors/regions
   - `management-cluster/`: Cluster type organization
-    - `application-defaults.yaml`: Default ArgoCD Application settings
+    - `defaults.yaml`: Default ArgoCD Application settings
     - `{app-name}/`: Individual application configuration
       - `metadata.yaml`: Application metadata and ownership
       - `values.yaml`: Base application configuration
-      - `{environment}/values.yaml`: Environment-specific overrides
+      - `{environment}/override.yaml`: Environment-level overrides
+      - `{environment}/patch-NNN.yaml`: Environment-level patches
+      - `{environment}/{sector}/override.yaml`: Sector-level overrides
+      - `{environment}/{sector}/patch-NNN.yaml`: Sector-level patches
+      - `{environment}/{sector}/{region}/override.yaml`: Region-level overrides
+      - `{environment}/{sector}/{region}/patch-NNN.yaml`: Region-level patches
 - **rendered/**: Generated ArgoCD resources (auto-generated, committed)
   - `management-cluster/{environment}/{sector}/{region}/`: Target-specific manifests
     - `Chart.yaml`: Helm chart metadata
@@ -35,7 +40,7 @@ This is the **gcp-hcp-apps** repository - A GitOps fleet management system for t
 
 1. **Source Configuration**: Applications defined in `config/` with base values and environment overrides
 2. **Target Discovery**: Generator discovers all dimensional combinations from `config.yaml`
-3. **Value Merging**: Deep merge with precedence: defaults → base → environment overrides
+3. **Value Merging**: Deep merge with precedence: defaults → base → environment (override → patches) → sector (override → patches) → region (override → patches)
 4. **Helm Processing**: Templates processed via `helm template` to generate final ArgoCD Applications and ApplicationSets
 5. **Output**: Individual Application and ApplicationSet files created in `rendered/` hierarchy
 
@@ -152,14 +157,14 @@ kubectl --dry-run=client apply -f rendered/management-cluster/production/prod-se
    make test
    ```
 
-### Environment Overrides
+### Dimensional Overrides
 
-Create environment-specific configurations for production stability:
+Create permanent dimensional configurations:
 
 ```bash
 # Production overrides
 mkdir -p config/management-cluster/my-app/production
-cat > config/management-cluster/my-app/production/values.yaml << EOF
+cat > config/management-cluster/my-app/production/override.yaml << EOF
 applications:
   my-app:
     source:
@@ -173,6 +178,91 @@ applications:
               cpu: "500m"
 EOF
 ```
+
+### Patch System
+
+The patch system enables temporary changes that roll through the fleet progressively:
+
+#### File Types
+- **`values.yaml`**: Base application configuration (permanent)
+- **`override.yaml`**: Permanent dimensional overrides (permanent)
+- **`patch-NNN.yaml`**: Temporary rolling changes (temporary)
+
+#### Creating Patches
+
+```bash
+# Create environment-level patch
+cat > config/management-cluster/cert-manager/integration/patch-001.yaml << EOF
+metadata:
+  description: "Upgrade cert-manager to v1.16.0"
+
+applications:
+  cert-manager:
+    source:
+      targetRevision: "v1.16.0"
+EOF
+
+# Create sector-level patch
+cat > config/management-cluster/prometheus/stage/stage-sector-1/patch-002.yaml << EOF
+metadata:
+  description: "Enable ServiceMonitor for testing"
+
+applications:
+  prometheus:
+    source:
+      helm:
+        valuesObject:
+          serviceMonitor:
+            enabled: true
+EOF
+```
+
+#### Patch Application Order
+
+For each dimensional level, the generator applies:
+1. `override.yaml` (permanent overrides, eg `replicas:4` for production)
+2. `patch-*.yaml` files (in filename sort order)
+
+#### Progressive Rollout Example
+
+```bash
+# Phase 1: Start in one region
+config/management-cluster/app/integration/int-sector-1/us-central1/patch-001.yaml
+
+# Phase 2: Expand within sector (manual)
+config/management-cluster/app/integration/int-sector-1/europe-west1/patch-001.yaml
+
+# Phase 3: Consolidate to sector level (manual)
+mv patch to: config/management-cluster/app/integration/int-sector-1/patch-001.yaml
+rm region-level patches
+
+# Phase 4: Expand to environment level (manual)
+mv patch to: config/management-cluster/app/integration/patch-001.yaml
+rm sector-level patches
+
+# Phase 5: Final integration (manual)
+merge patch content into base values.yaml
+rm all patch files
+```
+
+#### Patch Lifecycle Management
+
+1. **Region Start**: Create `patch-001.yaml` in specific region
+2. **Region Spread**: Copy patch to other regions in same sector after validation
+3. **Sector Consolidation**: When all regions in sector have patch:
+   - Move patch to sector level: `sector/patch-001.yaml`
+   - Remove all region-level patches: `sector/region/patch-001.yaml`
+4. **Environment Consolidation**: When all sectors in environment have patch:
+   - Move patch to environment level: `environment/patch-001.yaml`
+   - Remove all sector-level patches: `environment/sector/patch-001.yaml`
+5. **Final Integration**: When all environments have patch:
+   - Merge patch content into base `values.yaml`
+   - Remove all environment-level patches
+
+**Note**: Patch progression is currently manual. Future enhancements may include:
+- CLI commands for patch promotion (`promote`, `consolidate`)
+- Dependency checking and automatic promotion
+- Patch conflict detection
 
 ### Dimensional Configuration
 
