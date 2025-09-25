@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 import yaml
-from utils import Config, deep_merge, load_yaml, save_yaml
+from utils import Config, Patch, deep_merge, get_config, load_yaml, save_yaml
 
 
 @dataclass
@@ -30,22 +30,6 @@ class Target:
     def path(self) -> str:
         """Get the file system path for this target."""
         return "/".join(self.path_parts)
-
-
-def get_patched_fields(patch_data: Dict[str, Any]) -> List[str]:
-    """Extract all YAML paths that this patch modifies."""
-    paths: List[str] = []
-
-    def extract_paths(data: Dict[str, Any], prefix: str = "") -> None:
-        for key, value in data.items():
-            current_path = f"{prefix}.{key}" if prefix else key
-            if isinstance(value, dict):
-                extract_paths(value, current_path)
-            else:
-                paths.append(current_path)
-
-    extract_paths(patch_data)
-    return paths
 
 
 def discover_targets(config: Config) -> List[Target]:
@@ -67,7 +51,7 @@ def load_base_component_values(
     cluster_type: str, component_name: str
 ) -> Dict[str, Any]:
     """Load base component values including defaults."""
-    base_path = Path("config") / cluster_type
+    base_path = get_config().path(cluster_type)
     merged: Dict[str, Any] = {}
 
     # 1. Load defaults for all resource types (mandatory)
@@ -107,21 +91,20 @@ def load_base_component_values(
 
 
 def warn_on_conflicts(
-    patch_file: Path,
-    patch_data: Dict[str, Any],
-    applied_patches: List[tuple[Path, List[str]]],
+    patch: Patch,
+    applied_patches: List[Patch],
 ) -> None:
     """Check for conflicts with previously applied patches, warn if found, and track this patch."""
-    patch_paths = get_patched_fields(patch_data)
+    patch_jsonpaths = patch.patched_fields
 
-    for prev_patch_file, prev_paths in applied_patches:
-        conflicts = set(patch_paths) & set(prev_paths)
+    for previous_patch in applied_patches:
+        conflicts = set(patch_jsonpaths) & set(previous_patch.patched_fields)
         if conflicts:
             print("WARNING: Patch conflict detected:")
-            print(f"  {patch_file} conflicts with {prev_patch_file}")
+            print(f"  {patch.path} conflicts with {previous_patch.path}")
             print(f"  Conflicting paths: {', '.join(sorted(conflicts))}")
 
-    applied_patches.append((patch_file, patch_paths))
+    applied_patches.append(patch)
 
 
 def merge_component_values(
@@ -136,7 +119,11 @@ def merge_component_values(
     # e.g., for ["production", "prod-sector-1", "us-east1"]
     # try: production/, production/prod-sector-1/, production/prod-sector-1/us-east1/
     for i in range(len(target.path_parts)):
-        dimension_dir = component_dir / "/".join(target.path_parts[: i + 1])
+        dimensions = target.path_parts[: i + 1]
+        dimension_dir = component_dir / "/".join(dimensions)
+
+        if not dimension_dir.exists():
+            continue
 
         # Apply permanent values first
         override_file = dimension_dir / "override.yaml"
@@ -145,21 +132,20 @@ def merge_component_values(
             merged = deep_merge(merged, override)
 
         # Apply patches second (in filename order)
-        if not dimension_dir.exists():
-            continue
-
-        applied_patches: List[tuple[Path, List[str]]] = []
+        applied_patches: List[Patch] = []
 
         for patch_file in sorted(dimension_dir.glob("patch-*.yaml")):
-            patch_data = load_yaml(patch_file)
-            # Drop metadata section, apply rest using existing deep_merge
-            if "metadata" in patch_data:
-                del patch_data["metadata"]
+            patch = Patch(
+                cluster_type=cluster_type,
+                component=component_name,
+                dimensions=tuple(dimensions),
+                name=patch_file.stem,
+            )
 
             # Check for conflicts with previously applied patches
-            warn_on_conflicts(patch_file, patch_data, applied_patches)
+            warn_on_conflicts(patch, applied_patches)
 
-            merged = deep_merge(merged, patch_data)
+            merged = deep_merge(merged, patch.content)
 
     return merged
 
@@ -169,8 +155,8 @@ def render_target(cluster_type: str, target: Target, config: Config) -> None:
     print(f"Rendering {cluster_type}/{target.path}")
 
     # Create target directory
-    target_dir = Path("rendered") / cluster_type / target.path
-    (target_dir / "templates").mkdir(exist_ok=True)
+    target_dir = config.rendered_path / cluster_type / target.path
+    (target_dir / "templates").mkdir(parents=True, exist_ok=True)
 
     # Find components for this cluster type
     components = config.components(cluster_type)
@@ -239,11 +225,11 @@ def main() -> None:
 
     # Change to repository root (parent of hack/ directory)
     repo_root = Path(__file__).parent.parent
-    os.chdir(repo_root)
+    os.chdir(repo_root)  # TODO: check if needed
     print(f"Working directory: {repo_root}")
 
     # Load global config
-    config = Config()
+    config = get_config()
 
     # Discover all targets
     targets = discover_targets(config)
@@ -252,7 +238,7 @@ def main() -> None:
         print(f"  - {target.path}")
 
     # Clean rendered directory
-    rendered_dir = Path("rendered")
+    rendered_dir = repo_root / "rendered"
     if rendered_dir.exists():
         shutil.rmtree(rendered_dir)
 

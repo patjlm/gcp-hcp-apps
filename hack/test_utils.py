@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 import yaml
-from utils import Config, deep_merge, load_yaml, save_yaml, _walk_dimensions
+from utils import Config, _walk_dimensions, deep_merge, load_yaml, save_yaml
 
 
 class TestDeepMerge:

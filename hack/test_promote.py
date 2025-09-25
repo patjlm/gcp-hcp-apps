@@ -21,7 +21,7 @@ import pytest
 sys.path.insert(0, os.path.dirname(__file__))
 
 import promote
-from utils import Config, _walk_dimensions
+from utils import Config, Patch, _walk_dimensions
 
 
 class MockConfig(Config):
@@ -88,7 +88,8 @@ def test_gap_detection_no_gaps():
         mock_config = MockConfig(config, base_dir / "config")
 
         with (
-            patch("promote.config", mock_config),
+            patch("promote.get_config", return_value=mock_config),
+            patch("utils.get_config", return_value=mock_config),
             patch.object(Path, "cwd", return_value=base_dir),
         ):
             # Should detect no gaps
@@ -116,7 +117,8 @@ def test_gap_detection_region_gap():
         mock_config = MockConfig(config, base_dir / "config")
 
         with (
-            patch("promote.config", mock_config),
+            patch("promote.get_config", return_value=mock_config),
+            patch("utils.get_config", return_value=mock_config),
             patch.object(Path, "cwd", return_value=base_dir),
         ):
             os.chdir(base_dir)
@@ -148,7 +150,8 @@ def test_gap_detection_sector_gap():
         mock_config = MockConfig(config, base_dir / "config")
 
         with (
-            patch("promote.config", mock_config),
+            patch("promote.get_config", return_value=mock_config),
+            patch("utils.get_config", return_value=mock_config),
             patch.object(Path, "cwd", return_value=base_dir),
         ):
             os.chdir(base_dir)
@@ -180,7 +183,8 @@ def test_gap_detection_environment_gap():
         mock_config = MockConfig(config, base_dir / "config")
 
         with (
-            patch("promote.config", mock_config),
+            patch("promote.get_config", return_value=mock_config),
+            patch("utils.get_config", return_value=mock_config),
             patch.object(Path, "cwd", return_value=base_dir),
         ):
             os.chdir(base_dir)
@@ -277,7 +281,8 @@ def test_real_config_gap_detection_region_gap():
         mock_config = MockConfig(config, base_dir / "config")
 
         with (
-            patch("promote.config", mock_config),
+            patch("promote.get_config", return_value=mock_config),
+            patch("utils.get_config", return_value=mock_config),
             patch.object(Path, "cwd", return_value=base_dir),
         ):
             os.chdir(base_dir)
@@ -306,7 +311,8 @@ def test_real_config_gap_detection_sector_gap():
         mock_config = MockConfig(config, base_dir / "config")
 
         with (
-            patch("promote.config", mock_config),
+            patch("promote.get_config", return_value=mock_config),
+            patch("utils.get_config", return_value=mock_config),
             patch.object(Path, "cwd", return_value=base_dir),
         ):
             os.chdir(base_dir)
@@ -335,7 +341,8 @@ def test_real_config_gap_detection_environment_gap():
         mock_config = MockConfig(config, base_dir / "config")
 
         with (
-            patch("promote.config", mock_config),
+            patch("promote.get_config", return_value=mock_config),
+            patch("utils.get_config", return_value=mock_config),
             patch.object(Path, "cwd", return_value=base_dir),
         ):
             os.chdir(base_dir)
@@ -364,7 +371,8 @@ def test_valid_region_to_region_promotion():
         mock_config = MockConfig(config, base_dir / "config")
 
         with (
-            patch("promote.config", mock_config),
+            patch("promote.get_config", return_value=mock_config),
+            patch("utils.get_config", return_value=mock_config),
             patch.object(Path, "cwd", return_value=base_dir),
         ):
             os.chdir(base_dir)
@@ -401,7 +409,8 @@ def test_valid_region_to_sector_promotion():
         mock_config = MockConfig(config, base_dir / "config")
 
         with (
-            patch("promote.config", mock_config),
+            patch("promote.get_config", return_value=mock_config),
+            patch("utils.get_config", return_value=mock_config),
             patch.object(Path, "cwd", return_value=base_dir),
         ):
             os.chdir(base_dir)
@@ -435,7 +444,8 @@ def test_valid_sector_to_sector_promotion():
         mock_config = MockConfig(config, base_dir / "config")
 
         with (
-            patch("promote.config", mock_config),
+            patch("promote.get_config", return_value=mock_config),
+            patch("utils.get_config", return_value=mock_config),
             patch.object(Path, "cwd", return_value=base_dir),
         ):
             os.chdir(base_dir)
@@ -469,7 +479,8 @@ def test_valid_environment_to_environment_promotion():
         mock_config = MockConfig(config, base_dir / "config")
 
         with (
-            patch("promote.config", mock_config),
+            patch("promote.get_config", return_value=mock_config),
+            patch("utils.get_config", return_value=mock_config),
             patch.object(Path, "cwd", return_value=base_dir),
         ):
             os.chdir(base_dir)
@@ -503,7 +514,8 @@ def test_no_patches_found():
         mock_config = MockConfig(config, base_dir / "config")
 
         with (
-            patch("promote.config", mock_config),
+            patch("promote.get_config", return_value=mock_config),
+            patch("utils.get_config", return_value=mock_config),
             patch.object(Path, "cwd", return_value=base_dir),
         ):
             os.chdir(base_dir)
@@ -534,7 +546,8 @@ def test_end_of_sequence():
         mock_config = MockConfig(config, base_dir / "config")
 
         with (
-            patch("promote.config", mock_config),
+            patch("promote.get_config", return_value=mock_config),
+            patch("utils.get_config", return_value=mock_config),
             patch.object(Path, "cwd", return_value=base_dir),
         ):
             os.chdir(base_dir)
@@ -560,7 +573,8 @@ def test_complete_promotion_flow():
         mock_config = MockConfig(config, base_dir / "config")
 
         with (
-            patch("promote.config", mock_config),
+            patch("promote.get_config", return_value=mock_config),
+            patch("utils.get_config", return_value=mock_config),
             patch.object(Path, "cwd", return_value=base_dir),
         ):
             os.chdir(base_dir)
@@ -622,7 +636,8 @@ def test_coalesce_patches_region_to_sector():
         mock_config = MockConfig(config, base_dir / "config")
 
         with (
-            patch("promote.config", mock_config),
+            patch("promote.get_config", return_value=mock_config),
+            patch("utils.get_config", return_value=mock_config),
             patch.object(Path, "cwd", return_value=base_dir),
         ):
             os.chdir(base_dir)
@@ -666,7 +681,8 @@ def test_coalesce_patches_sector_to_environment():
         mock_config = MockConfig(config, base_dir / "config")
 
         with (
-            patch("promote.config", mock_config),
+            patch("promote.get_config", return_value=mock_config),
+            patch("utils.get_config", return_value=mock_config),
             patch.object(Path, "cwd", return_value=base_dir),
         ):
             os.chdir(base_dir)
@@ -711,7 +727,8 @@ def test_coalesce_patches_mixed_levels():
         mock_config = MockConfig(config, base_dir / "config")
 
         with (
-            patch("promote.config", mock_config),
+            patch("promote.get_config", return_value=mock_config),
+            patch("utils.get_config", return_value=mock_config),
             patch.object(Path, "cwd", return_value=base_dir),
         ):
             os.chdir(base_dir)
@@ -754,7 +771,8 @@ def test_coalesce_patches_incomplete_coverage():
         mock_config = MockConfig(config, base_dir / "config")
 
         with (
-            patch("promote.config", mock_config),
+            patch("promote.get_config", return_value=mock_config),
+            patch("utils.get_config", return_value=mock_config),
             patch.object(Path, "cwd", return_value=base_dir),
         ):
             os.chdir(base_dir)
@@ -794,7 +812,8 @@ def test_coalesce_patches_already_at_higher_level():
         mock_config = MockConfig(config, base_dir / "config")
 
         with (
-            patch("promote.config", mock_config),
+            patch("promote.get_config", return_value=mock_config),
+            patch("utils.get_config", return_value=mock_config),
             patch.object(Path, "cwd", return_value=base_dir),
         ):
             os.chdir(base_dir)
@@ -840,7 +859,8 @@ def test_coalesce_patches_cross_environment():
         mock_config = MockConfig(config, base_dir / "config")
 
         with (
-            patch("promote.config", mock_config),
+            patch("promote.get_config", return_value=mock_config),
+            patch("utils.get_config", return_value=mock_config),
             patch.object(Path, "cwd", return_value=base_dir),
         ):
             os.chdir(base_dir)
@@ -895,7 +915,8 @@ def test_coalesce_patches_partial_cross_environment():
         mock_config = MockConfig(config, base_dir / "config")
 
         with (
-            patch("promote.config", mock_config),
+            patch("promote.get_config", return_value=mock_config),
+            patch("utils.get_config", return_value=mock_config),
             patch.object(Path, "cwd", return_value=base_dir),
         ):
             os.chdir(base_dir)
@@ -934,7 +955,8 @@ def test_coalesce_patches_empty_input():
         mock_config = MockConfig(config, base_dir / "config")
 
         with (
-            patch("promote.config", mock_config),
+            patch("promote.get_config", return_value=mock_config),
+            patch("utils.get_config", return_value=mock_config),
             patch.object(Path, "cwd", return_value=base_dir),
         ):
             os.chdir(base_dir)
@@ -967,7 +989,8 @@ def test_coalesce_patches_content_preservation():
         mock_config = MockConfig(config, base_dir / "config")
 
         with (
-            patch("promote.config", mock_config),
+            patch("promote.get_config", return_value=mock_config),
+            patch("utils.get_config", return_value=mock_config),
             patch.object(Path, "cwd", return_value=base_dir),
         ):
             os.chdir(base_dir)
@@ -1022,7 +1045,8 @@ applications:
         mock_config = MockConfig(config, base_dir / "config")
 
         with (
-            patch("promote.config", mock_config),
+            patch("promote.get_config", return_value=mock_config),
+            patch("utils.get_config", return_value=mock_config),
             patch.object(Path, "cwd", return_value=base_dir),
         ):
             os.chdir(base_dir)
@@ -1068,7 +1092,8 @@ def test_no_final_consolidation_with_partial_coverage():
         mock_config = MockConfig(config, base_dir / "config")
 
         with (
-            patch("promote.config", mock_config),
+            patch("promote.get_config", return_value=mock_config),
+            patch("utils.get_config", return_value=mock_config),
             patch.object(Path, "cwd", return_value=base_dir),
         ):
             os.chdir(base_dir)
@@ -1122,7 +1147,6 @@ applications:
 """)
 
         # Create a mock config that points to our temp directory
-        original_config = promote.config
         mock_config_data = {
             "dimensions": ["environments", "sectors", "regions"],
             "sequence": {
@@ -1136,11 +1160,11 @@ applications:
                 ]
             },
         }
-        promote.config = MockConfig(mock_config_data, base_dir)
+        mock_config = MockConfig(mock_config_data, base_dir)
 
-        try:
+        with patch("utils.get_config", return_value=mock_config):
             # Create patch object - no need to pass path, it's computed
-            patch_obj = promote.Patch(
+            patch_obj = Patch(
                 "management-cluster", "test-app", ("integration",), "patch-001"
             )
 
@@ -1168,9 +1192,6 @@ applications:
 
             # Verify metadata was stripped
             assert "metadata" not in merged_data
-        finally:
-            # Restore original config
-            promote.config = original_config
 
 
 def test_promote_function():
@@ -1187,7 +1208,8 @@ def test_promote_function():
         mock_config = MockConfig(config, base_dir / "config")
 
         with (
-            patch("promote.config", mock_config),
+            patch("promote.get_config", return_value=mock_config),
+            patch("utils.get_config", return_value=mock_config),
             patch.object(Path, "cwd", return_value=base_dir),
         ):
             os.chdir(base_dir)

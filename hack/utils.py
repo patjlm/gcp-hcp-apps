@@ -3,8 +3,9 @@
 Shared utilities for the gcp-hcp-apps project.
 """
 
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Iterator, Tuple
+from typing import Any, Dict, Iterator, List, Tuple
 
 import yaml
 
@@ -120,14 +121,17 @@ def _walk_dimensions(
                     dimension_item, next_dimensions, new_ancestors
                 )
 
+
 class Config:
     def __init__(self, root: Path | None = None):
         self.root = Path(__file__).parent.parent / "config" if root is None else root
+        self.repo_root = self.root.parent
         config_yaml = self.root / "config.yaml"
         self.config = load_yaml(config_yaml)
         self.dimensions = tuple(self.config["dimensions"])
         self.sequence = self.config["sequence"]
         self.cluster_types = self.config["cluster_types"]
+        self.rendered_path = self.repo_root / "rendered"
 
     def path(self, cluster_type: str, component: str | None = None) -> Path:
         if component is None:
@@ -147,3 +151,71 @@ class Config:
     def all_dimensions(self) -> list[Tuple[str, ...]]:
         """Get all possible dimension paths in sequence order."""
         return list(_walk_dimensions(self.sequence, self.dimensions))
+
+
+_config: Config | None = None
+
+
+def get_config(root: Path | None = None) -> Config:
+    global _config
+    if _config is None:
+        _config = Config(root)
+    return _config
+
+
+@dataclass
+class Patch:
+    cluster_type: str
+    component: str
+    dimensions: tuple[str, ...]
+    name: str
+
+    @property
+    def path(self) -> Path:
+        return (
+            get_config().path(self.cluster_type, self.component)
+            / Path(*self.dimensions)
+            / f"{self.name}.yaml"
+        )
+
+    def duplicate(self, dimensions: tuple[str, ...]) -> "Patch":
+        return Patch(
+            cluster_type=self.cluster_type,
+            component=self.component,
+            dimensions=dimensions,
+            name=self.name,
+        )
+
+    def _load(self) -> None:
+        data = load_yaml(self.path)
+        self._metadata = data.get("metadata", {})
+        if "metadata" in data:
+            del data["metadata"]
+        self._content = data
+
+    @property
+    def metadata(self) -> dict:
+        if not hasattr(self, "_metadata"):
+            self._load()
+        return self._metadata
+
+    @property
+    def content(self) -> dict:
+        if not hasattr(self, "_content"):
+            self._load()
+        return self._content
+
+    @property
+    def patched_fields(self) -> List[str]:
+        paths: List[str] = []
+
+        def extract_paths(data: Dict[str, Any], prefix: str = "") -> None:
+            for key, value in data.items():
+                current_path = f"{prefix}.{key}" if prefix else key
+                if isinstance(value, dict):
+                    extract_paths(value, current_path)
+                else:
+                    paths.append(current_path)
+
+        extract_paths(self.content)
+        return paths

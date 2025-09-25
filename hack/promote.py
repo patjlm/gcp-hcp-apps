@@ -15,66 +15,20 @@ import argparse
 import shutil
 import sys
 from collections.abc import Iterator
-from dataclasses import dataclass
 from pathlib import Path
 
-from utils import Config, deep_merge, load_yaml, save_yaml
-
-config = Config()
-
-
-@dataclass
-class Patch:
-    cluster_type: str
-    component: str
-    dimensions: tuple[str, ...]
-    name: str
-
-    @property
-    def path(self) -> Path:
-        return (
-            config.path(self.cluster_type, self.component)
-            / Path(*self.dimensions)
-            / f"{self.name}.yaml"
-        )
-
-    def duplicate(self, dimensions: tuple[str, ...]) -> "Patch":
-        return Patch(
-            cluster_type=self.cluster_type,
-            component=self.component,
-            dimensions=dimensions,
-            name=self.name,
-        )
-
-    def _load(self) -> None:
-        data = load_yaml(self.path)
-        self._metadata = data.get("metadata", {})
-        del data["metadata"]
-        self._content = data
-
-    @property
-    def metadata(self) -> dict:
-        if not hasattr(self, "_metadata"):
-            self._load()
-        return self._metadata
-
-    @property
-    def content(self) -> dict:
-        if not hasattr(self, "_content"):
-            self._load()
-        return self._content
-
+from utils import Patch, deep_merge, get_config, load_yaml, save_yaml
 
 # Default level to promote to when moving between top-level dimensions
 DEFAULT_PROMOTION_LEVEL = "sectors"
 DEFAULT_PROMOTION_LEVEL_NUMBER = (
-    config.dimensions.index(DEFAULT_PROMOTION_LEVEL) + 1
+    get_config().dimensions.index(DEFAULT_PROMOTION_LEVEL) + 1
 )  # sectors = index 1 + 1 = 2
 
 
 def find_patches(cluster_type: str, component: str, patch_name: str) -> Iterator[Patch]:
     """Find all patches in sequence order."""
-    for path_parts in config.all_dimensions:
+    for path_parts in get_config().all_dimensions:
         patch = Patch(
             cluster_type=cluster_type,
             component=component,
@@ -102,12 +56,12 @@ def detect_gaps(patches: list[Patch]) -> None:
     latest_patch = patches[-1]
 
     patched_dimensions = [p.dimensions for p in patches]
-    all_dimensions = config.all_dimensions
+    all_dimensions = get_config().all_dimensions
 
     for dimension in all_dimensions:
         if dimension == latest_patch.dimensions:
             break  # Stop at latest patch
-        if len(dimension) < len(config.dimensions):
+        if len(dimension) < len(get_config().dimensions):
             continue  # Skip incomplete paths
         if not is_patched(dimension, patched_dimensions):
             raise ValueError(
@@ -121,7 +75,7 @@ def get_next_location(patches: list[Patch]) -> Path | None:
     patched_dimensions = [p.dimensions for p in patches]
     current_patch_dimension_reached = False
 
-    for dimension in config.all_dimensions:
+    for dimension in get_config().all_dimensions:
         if dimension == current_patch.dimensions:
             current_patch_dimension_reached = True
             continue
@@ -196,14 +150,14 @@ def coalesce_patches(cluster_type: str, component: str, patch_name: str) -> None
         return
 
     # Get all possible dimensions
-    all_dimensions = config.all_dimensions
+    all_dimensions = get_config().all_dimensions
 
     patch_by_dimensions = {p.dimensions: p for p in patches}
 
-    for idx in range(1, len(config.dimensions)):
+    for idx in range(1, len(get_config().dimensions)):
         root_dimensions: dict[tuple[str, ...], list[tuple[str, ...]]] = {}
         for d in all_dimensions:
-            if len(d) == len(config.dimensions):
+            if len(d) == len(get_config().dimensions):
                 root_dimensions.setdefault(d[:idx], []).append(d)
 
         for root, dims in root_dimensions.items():
@@ -219,12 +173,14 @@ def coalesce_patches(cluster_type: str, component: str, patch_name: str) -> None
                 _perform_coalescing(root, patches_to_remove, patch_by_dimensions)
 
     # Final consolidation: root-level patches → values.yaml
-    all_root_names = {root["name"] for root in config.sequence[config.dimensions[0]]}
+    all_root_names = {
+        root["name"] for root in get_config().sequence[get_config().dimensions[0]]
+    }
     root_patches = [p for p in patch_by_dimensions.values() if len(p.dimensions) == 1]
     root_patch_names = {p.dimensions[0] for p in root_patches}
 
     if root_patch_names == all_root_names:
-        values_file = config.path(cluster_type, component) / "values.yaml"
+        values_file = get_config().path(cluster_type, component) / "values.yaml"
         merge_patch_into_values(root_patches[0], values_file)
 
         # Remove all root-level patches

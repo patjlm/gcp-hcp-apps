@@ -362,7 +362,11 @@ cluster_types:
             with open(prod_dir / "override.yaml", "w") as f:
                 yaml.dump(prod_override, f)
 
-            with patch("generate.os.chdir"), patch("generate.Path") as mock_path:
+            with (
+                patch("generate.os.chdir"),
+                patch("generate.Path") as mock_path,
+                patch("utils.get_config") as mock_get_config,
+            ):
 
                 def path_side_effect(path_str):
                     if path_str == "config":
@@ -379,6 +383,7 @@ cluster_types:
                     },
                     temp_dir,
                 )
+                mock_get_config.return_value = mock_config
 
                 target = Target(["production"])
                 result = merge_component_values(
@@ -422,6 +427,13 @@ class TestValidation:
             base_path = config_dir / "management-cluster"
             base_path.mkdir(parents=True)
 
+            # Create defaults.yaml so the test gets to the point of loading component values
+            defaults_content = {"applications": {"default": {"project": "default"}}}
+            with open(base_path / "defaults.yaml", "w") as f:
+                import yaml
+
+                yaml.dump(defaults_content, f)
+
             # Create app directory but NO values.yaml
             app_dir = base_path / "prometheus"
             app_dir.mkdir()
@@ -444,10 +456,14 @@ class TestValidation:
                 )
 
                 # Should raise FileNotFoundError when trying to load missing values.yaml
-                with pytest.raises(FileNotFoundError):
-                    merge_component_values(
-                        mock_config, "management-cluster", "prometheus", target
-                    )
+                with (
+                    patch("utils.get_config", return_value=mock_config),
+                    patch("generate.get_config", return_value=mock_config),
+                ):
+                    with pytest.raises(FileNotFoundError):
+                        merge_component_values(
+                            mock_config, "management-cluster", "prometheus", target
+                        )
             finally:
                 os.chdir(original_cwd)
 
@@ -587,7 +603,11 @@ class TestValidation:
                 yaml.dump(patch_content, f)
 
             # Mock os.chdir and Path so merge_component_values finds our temp files
-            with patch("generate.os.chdir"), patch("generate.Path") as mock_path:
+            with (
+                patch("generate.os.chdir"),
+                patch("generate.Path") as mock_path,
+                patch("utils.get_config") as mock_get_config,
+            ):
 
                 def path_side_effect(path_str):
                     if path_str == "config":
@@ -604,6 +624,7 @@ class TestValidation:
                     },
                     temp_dir,
                 )
+                mock_get_config.return_value = mock_config
 
                 target = Target(["production"])
                 result = merge_component_values(
@@ -672,7 +693,11 @@ class TestValidation:
             with open(integration_dir / "patch-002.yaml", "w") as f:
                 yaml.dump(patch_002, f)
 
-            with patch("generate.os.chdir"), patch("generate.Path") as mock_path:
+            with (
+                patch("generate.os.chdir"),
+                patch("generate.Path") as mock_path,
+                patch("utils.get_config") as mock_get_config,
+            ):
 
                 def path_side_effect(path_str):
                     if path_str == "config":
@@ -689,6 +714,7 @@ class TestValidation:
                     },
                     temp_dir,
                 )
+                mock_get_config.return_value = mock_config
 
                 target = Target(["integration"])
                 result = merge_component_values(
@@ -738,7 +764,11 @@ class TestValidation:
             with open(integration_dir / "patch-001.yaml", "w") as f:
                 yaml.dump(patch_with_metadata, f)
 
-            with patch("generate.os.chdir"), patch("generate.Path") as mock_path:
+            with (
+                patch("generate.os.chdir"),
+                patch("generate.Path") as mock_path,
+                patch("utils.get_config") as mock_get_config,
+            ):
 
                 def path_side_effect(path_str):
                     if path_str == "config":
@@ -755,6 +785,7 @@ class TestValidation:
                     },
                     temp_dir,
                 )
+                mock_get_config.return_value = mock_config
 
                 target = Target(["integration"])
                 result = merge_component_values(
@@ -816,7 +847,11 @@ class TestValidation:
             import io
             from contextlib import redirect_stdout
 
-            with patch("generate.os.chdir"), patch("generate.Path") as mock_path:
+            with (
+                patch("generate.os.chdir"),
+                patch("generate.Path") as mock_path,
+                patch("utils.get_config") as mock_get_config,
+            ):
 
                 def path_side_effect(path_str):
                     if path_str == "config":
@@ -833,6 +868,7 @@ class TestValidation:
                     },
                     temp_dir,
                 )
+                mock_get_config.return_value = mock_config
 
                 # Capture print output
                 captured_output = io.StringIO()
@@ -856,36 +892,72 @@ class TestValidation:
                 )
 
     def test_get_patch_paths_function(self):
-        """Test the patch path extraction function."""
-        from generate import get_patched_fields
+        """Test the patch path extraction function via Patch class."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Create a test patch file
+            base_path = (
+                Path(temp_dir) / "management-cluster" / "prometheus" / "integration"
+            )
+            base_path.mkdir(parents=True)
 
-        # Simple patch
-        patch_data = {
-            "applications": {"prometheus": {"source": {"targetRevision": "77.9.0"}}}
-        }
-
-        paths = get_patched_fields(patch_data)
-        expected_paths = ["applications.prometheus.source.targetRevision"]
-        assert paths == expected_paths
-
-        # Complex patch with multiple paths
-        complex_patch = {
-            "applications": {
-                "prometheus": {
-                    "source": {"targetRevision": "77.9.0"},
-                    "syncPolicy": {"syncOptions": ["ServerSideApply=true"]},
-                },
-                "cert-manager": {"source": {"targetRevision": "v1.16.0"}},
+            # Simple patch
+            patch_data = {
+                "applications": {"prometheus": {"source": {"targetRevision": "77.9.0"}}}
             }
-        }
 
-        paths = get_patched_fields(complex_patch)
-        expected_paths = [
-            "applications.prometheus.source.targetRevision",
-            "applications.prometheus.syncPolicy.syncOptions",
-            "applications.cert-manager.source.targetRevision",
-        ]
-        assert sorted(paths) == sorted(expected_paths)
+            patch_file = base_path / "patch-001.yaml"
+            with open(patch_file, "w") as f:
+                yaml.dump(patch_data, f)
+
+            # Create patch object using our temp directory
+            from utils import Patch
+
+            mock_config = MockConfig(
+                {
+                    "dimensions": ["environments", "sectors", "regions"],
+                    "sequence": {"environments": []},
+                },
+                temp_dir,
+            )
+
+            # Temporarily override get_config to return our mock
+            with patch("utils.get_config") as mock_get_config:
+                mock_get_config.return_value = mock_config
+                patch_obj = Patch(
+                    "management-cluster", "prometheus", ("integration",), "patch-001"
+                )
+                paths = patch_obj.patched_fields
+                expected_paths = ["applications.prometheus.source.targetRevision"]
+                assert paths == expected_paths
+
+                # Complex patch with multiple paths
+                complex_patch = {
+                    "applications": {
+                        "prometheus": {
+                            "source": {"targetRevision": "77.9.0"},
+                            "syncPolicy": {"syncOptions": ["ServerSideApply=true"]},
+                        },
+                        "cert-manager": {"source": {"targetRevision": "v1.16.0"}},
+                    }
+                }
+
+                # Update the patch file with complex data
+                with open(patch_file, "w") as f:
+                    yaml.dump(complex_patch, f)
+
+                # Clear cached data to force reload
+                if hasattr(patch_obj, "_content"):
+                    delattr(patch_obj, "_content")
+                if hasattr(patch_obj, "_metadata"):
+                    delattr(patch_obj, "_metadata")
+
+                paths = patch_obj.patched_fields
+                expected_paths = [
+                    "applications.prometheus.source.targetRevision",
+                    "applications.prometheus.syncPolicy.syncOptions",
+                    "applications.cert-manager.source.targetRevision",
+                ]
+                assert sorted(paths) == sorted(expected_paths)
 
     def test_invalid_cluster_type_raises_error(self):
         """Test that invalid cluster type raises OSError."""
