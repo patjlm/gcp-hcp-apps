@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 import yaml
-from utils import deep_merge, load_config, load_yaml, save_yaml, walk_dimensions
+from utils import Config, deep_merge, load_yaml, save_yaml, walk_dimensions
 
 
 @dataclass
@@ -32,7 +32,7 @@ class Target:
         return "/".join(self.path_parts)
 
 
-def get_patch_paths(patch_data: Dict[str, Any]) -> List[str]:
+def get_patched_fields(patch_data: Dict[str, Any]) -> List[str]:
     """Extract all YAML paths that this patch modifies."""
     paths: List[str] = []
 
@@ -48,67 +48,35 @@ def get_patch_paths(patch_data: Dict[str, Any]) -> List[str]:
     return paths
 
 
-def discover_targets(config: Dict[str, Any]) -> List[Target]:
+def discover_targets(config: Config) -> List[Target]:
     """Discover all dimensional combinations from configurable hierarchy.
 
     Traverses the dimensional structure defined in config.yaml to generate
     all possible environment/sector/region (or other) combinations as deployment targets.
     """
-    dimensions = tuple(config["dimensions"])
-    sequence = config["sequence"]
-
     targets = []
-    for path_parts in walk_dimensions(sequence, dimensions):
+    for path_parts in walk_dimensions(config.sequence, config.dimensions):
         # Only keep complete leaf paths (full dimensional depth)
-        if len(path_parts) == len(dimensions):
+        if len(path_parts) == len(config.dimensions):
             targets.append(Target(list(path_parts)))
 
     return targets
 
 
-def find_components(cluster_type: str) -> List[str]:
-    """Find all components for a cluster type."""
-    config_dir = Path("config") / cluster_type
-    components: List[str] = []
-
-    if not config_dir.exists():
-        raise FileNotFoundError(f"Config directory not found: {config_dir}")
-
-    for component_dir in config_dir.iterdir():
-        if component_dir.is_dir():
-            if (component_dir / "values.yaml").exists():
-                components.append(component_dir.name)
-
-    return components
-
-
-def merge_component_values(
-    cluster_type: str, component_name: str, target: Target
+def load_base_component_values(
+    cluster_type: str, component_name: str
 ) -> Dict[str, Any]:
-    """Merge component values for a specific target."""
+    """Load base component values including defaults."""
     base_path = Path("config") / cluster_type
     merged: Dict[str, Any] = {}
 
     # 1. Load defaults for all resource types (mandatory)
     defaults_file = base_path / "defaults.yaml"
-    if not defaults_file.exists():
-        raise FileNotFoundError(f"Mandatory defaults file not found: {defaults_file}")
-    defaults_to_apply = load_yaml(defaults_file)
-    if not defaults_to_apply:
-        raise ValueError(f"Defaults file is empty or invalid: {defaults_file}")
+    defaults_to_apply = load_yaml(defaults_file, check_empty=True)
 
     # 2. Load base component values (mandatory)
     component_values_file = base_path / component_name / "values.yaml"
-    if not component_values_file.exists():
-        raise FileNotFoundError(
-            f"Mandatory component values file not found: {component_values_file}"
-        )
-
-    component_values = load_yaml(component_values_file)
-    if not component_values:
-        raise ValueError(
-            f"Component values file is empty or invalid: {component_values_file}"
-        )
+    component_values = load_yaml(component_values_file, check_empty=True)
     merged = deep_merge(merged, component_values)
 
     # 2.5. Apply defaults dynamically based on what sections exist in component_values
@@ -124,7 +92,7 @@ def merge_component_values(
                 f"Missing 'default' section for '{section_name}' in {defaults_file}"
             )
 
-    # Now apply defaults to each used section
+    # Now apply defaults to each used section ("applications", "applicationsets", etc.)
     for section_name in component_values.keys():
         section_defaults = defaults_to_apply[section_name]
         default_values = section_defaults["default"]
@@ -139,7 +107,18 @@ def merge_component_values(
                 default_values, merged[section_name][item_name]
             )
 
-    # 3. Load dimensional overrides (try each cumulative path level)
+    return merged
+
+
+def merge_component_values(
+    cluster_type: str, component_name: str, target: Target
+) -> Dict[str, Any]:
+    """Merge component values for a specific target."""
+    base_path = Path("config") / cluster_type
+
+    # Load base component values with defaults
+    merged = load_base_component_values(cluster_type, component_name)
+
     # e.g., for ["production", "prod-sector-1", "us-east1"]
     # try: production/, production/prod-sector-1/, production/prod-sector-1/us-east1/
     component_dir = base_path / component_name
@@ -163,7 +142,7 @@ def merge_component_values(
                     del patch_data["metadata"]
 
                 # Check for conflicts with previously applied patches
-                patch_paths = get_patch_paths(patch_data)
+                patch_paths = get_patched_fields(patch_data)
                 for prev_patch_file, prev_paths in applied_patches:
                     conflicts = set(patch_paths) & set(prev_paths)
                     if conflicts:
@@ -177,7 +156,7 @@ def merge_component_values(
     return merged
 
 
-def render_target(cluster_type: str, target: Target) -> None:
+def render_target(cluster_type: str, target: Target, config: Config) -> None:
     """Render all components for a specific target."""
     print(f"Rendering {cluster_type}/{target.path}")
 
@@ -186,7 +165,7 @@ def render_target(cluster_type: str, target: Target) -> None:
     target_dir.mkdir(parents=True, exist_ok=True)
 
     # Find components for this cluster type
-    components = find_components(cluster_type)
+    components = config.components(cluster_type)
 
     # Merge values for all components
     merged_values: Dict[str, Any] = {}
@@ -198,8 +177,8 @@ def render_target(cluster_type: str, target: Target) -> None:
     with tempfile.NamedTemporaryFile(
         mode="w", suffix=".yaml", delete=False
     ) as temp_values:
-        yaml.dump(merged_values, temp_values, default_flow_style=False, sort_keys=False)
         temp_values_path = temp_values.name
+        save_yaml(merged_values, Path(temp_values_path))
 
         try:
             # Run helm template directly on the chart with custom values
@@ -208,7 +187,7 @@ def render_target(cluster_type: str, target: Target) -> None:
                     "helm",
                     "template",
                     f"{cluster_type}-apps",
-                    "argocd-apps",  # Use the actual chart directory
+                    "argocd-apps",
                     "--values",
                     temp_values_path,
                 ],
@@ -224,17 +203,8 @@ def render_target(cluster_type: str, target: Target) -> None:
             for doc in yaml.safe_load_all(result.stdout):
                 if doc and doc.get("metadata", {}).get("name"):
                     resource_name = doc["metadata"]["name"]
-                    with open(
-                        target_dir / "templates" / f"{resource_name}.yaml", "w"
-                    ) as f:
-                        f.write("---\n")
-                        yaml.dump(
-                            doc,
-                            f,
-                            default_flow_style=False,
-                            sort_keys=False,
-                            width=1000,
-                        )
+                    resource_file = target_dir / "templates" / f"{resource_name}.yaml"
+                    save_yaml(doc, resource_file)
 
             # Create Chart.yaml for this target
             chart_data = {
@@ -266,9 +236,7 @@ def main() -> None:
     print(f"Working directory: {repo_root}")
 
     # Load global config
-    config = load_config()
-    if not config:
-        raise ValueError("Global config file config/config.yaml is empty or invalid")
+    config = Config()
 
     # Discover all targets
     targets = discover_targets(config)
@@ -282,13 +250,13 @@ def main() -> None:
         shutil.rmtree(rendered_dir)
 
     # Process each cluster type
-    for cluster_type_config in config["cluster_types"]:
+    for cluster_type_config in config.cluster_types:
         cluster_type: str = cluster_type_config["name"]
         print(f"\nProcessing cluster type: {cluster_type}")
 
         # Render each target
         for target in targets:
-            render_target(cluster_type, target)
+            render_target(cluster_type, target, config)
 
     print("\nGeneration complete! Check the 'rendered/' directory.")
 

@@ -23,6 +23,22 @@ sys.path.insert(0, os.path.dirname(__file__))
 import promote
 
 
+class MockConfig:
+    """Mock Config class for testing."""
+
+    def __init__(self, config_dict, root_path):
+        self.config = config_dict
+        self.dimensions = tuple(config_dict["dimensions"])
+        self.sequence = config_dict["sequence"]
+        self.cluster_types = config_dict.get("cluster_types", [])
+        self.root = root_path
+
+    def path(self, cluster_type: str, application: str = None) -> Path:
+        if application is None:
+            return self.root / cluster_type
+        return self.root / cluster_type / application
+
+
 def create_test_config():
     """Create a simple test configuration."""
     return {
@@ -72,11 +88,7 @@ def test_gap_detection_no_gaps():
         create_test_filesystem(base_dir, patches)
 
         # Mock the config object
-        mock_config = promote.Config()
-        mock_config.config = config
-        mock_config.dimensions = config["dimensions"]
-        mock_config.sequence = config["sequence"]
-        mock_config.root = base_dir / "config"
+        mock_config = MockConfig(config, base_dir / "config")
 
         with (
             patch("promote.config", mock_config),
@@ -104,11 +116,7 @@ def test_gap_detection_region_gap():
         create_test_filesystem(base_dir, patches)
 
         # Mock the config object
-        mock_config = promote.Config()
-        mock_config.config = config
-        mock_config.dimensions = config["dimensions"]
-        mock_config.sequence = config["sequence"]
-        mock_config.root = base_dir / "config"
+        mock_config = MockConfig(config, base_dir / "config")
 
         with (
             patch("promote.config", mock_config),
@@ -140,11 +148,7 @@ def test_gap_detection_sector_gap():
         create_test_filesystem(base_dir, patches)
 
         # Mock the config object
-        mock_config = promote.Config()
-        mock_config.config = config
-        mock_config.dimensions = config["dimensions"]
-        mock_config.sequence = config["sequence"]
-        mock_config.root = base_dir / "config"
+        mock_config = MockConfig(config, base_dir / "config")
 
         with (
             patch("promote.config", mock_config),
@@ -176,11 +180,7 @@ def test_gap_detection_environment_gap():
         create_test_filesystem(base_dir, patches)
 
         # Mock the config object
-        mock_config = promote.Config()
-        mock_config.config = config
-        mock_config.dimensions = config["dimensions"]
-        mock_config.sequence = config["sequence"]
-        mock_config.root = base_dir / "config"
+        mock_config = MockConfig(config, base_dir / "config")
 
         with (
             patch("promote.config", mock_config),
@@ -279,11 +279,7 @@ def test_real_config_gap_detection_region_gap():
         patches = ["integration/int-sector-1/europe-west1"]
         create_test_filesystem(base_dir, patches)
 
-        mock_config = promote.Config()
-        mock_config.config = config
-        mock_config.dimensions = config["dimensions"]
-        mock_config.sequence = config["sequence"]
-        mock_config.root = base_dir / "config"
+        mock_config = MockConfig(config, base_dir / "config")
 
         with (
             patch("promote.config", mock_config),
@@ -312,11 +308,7 @@ def test_real_config_gap_detection_sector_gap():
         patches = ["integration/int-sector-2"]
         create_test_filesystem(base_dir, patches)
 
-        mock_config = promote.Config()
-        mock_config.config = config
-        mock_config.dimensions = config["dimensions"]
-        mock_config.sequence = config["sequence"]
-        mock_config.root = base_dir / "config"
+        mock_config = MockConfig(config, base_dir / "config")
 
         with (
             patch("promote.config", mock_config),
@@ -345,11 +337,7 @@ def test_real_config_gap_detection_environment_gap():
         patches = ["stage"]
         create_test_filesystem(base_dir, patches)
 
-        mock_config = promote.Config()
-        mock_config.config = config
-        mock_config.dimensions = config["dimensions"]
-        mock_config.sequence = config["sequence"]
-        mock_config.root = base_dir / "config"
+        mock_config = MockConfig(config, base_dir / "config")
 
         with (
             patch("promote.config", mock_config),
@@ -378,11 +366,7 @@ def test_valid_region_to_region_promotion():
         patches = ["integration/int-sector-1/us-central1"]
         create_test_filesystem(base_dir, patches)
 
-        mock_config = promote.Config()
-        mock_config.config = config
-        mock_config.dimensions = config["dimensions"]
-        mock_config.sequence = config["sequence"]
-        mock_config.root = base_dir / "config"
+        mock_config = MockConfig(config, base_dir / "config")
 
         with (
             patch("promote.config", mock_config),
@@ -421,11 +405,7 @@ def test_valid_region_to_sector_promotion():
         ]
         create_test_filesystem(base_dir, patches)
 
-        mock_config = promote.Config()
-        mock_config.config = config
-        mock_config.dimensions = config["dimensions"]
-        mock_config.sequence = config["sequence"]
-        mock_config.root = base_dir / "config"
+        mock_config = MockConfig(config, base_dir / "config")
 
         with (
             patch("promote.config", mock_config),
@@ -461,11 +441,7 @@ def test_valid_sector_to_sector_promotion():
         patches = ["integration/int-sector-1"]
         create_test_filesystem(base_dir, patches)
 
-        mock_config = promote.Config()
-        mock_config.config = config
-        mock_config.dimensions = config["dimensions"]
-        mock_config.sequence = config["sequence"]
-        mock_config.root = base_dir / "config"
+        mock_config = MockConfig(config, base_dir / "config")
 
         with (
             patch("promote.config", mock_config),
@@ -501,11 +477,7 @@ def test_valid_environment_to_environment_promotion():
         patches = ["integration"]
         create_test_filesystem(base_dir, patches)
 
-        mock_config = promote.Config()
-        mock_config.config = config
-        mock_config.dimensions = config["dimensions"]
-        mock_config.sequence = config["sequence"]
-        mock_config.root = base_dir / "config"
+        mock_config = MockConfig(config, base_dir / "config")
 
         with (
             patch("promote.config", mock_config),
@@ -541,11 +513,7 @@ def test_no_patches_found():
         app_dir = base_dir / "config" / "management-cluster" / "test-app"
         app_dir.mkdir(parents=True, exist_ok=True)
 
-        mock_config = promote.Config()
-        mock_config.config = config
-        mock_config.dimensions = config["dimensions"]
-        mock_config.sequence = config["sequence"]
-        mock_config.root = base_dir / "config"
+        mock_config = MockConfig(config, base_dir / "config")
 
         with (
             patch("promote.config", mock_config),
@@ -576,11 +544,7 @@ def test_end_of_sequence():
         ]
         create_test_filesystem(base_dir, patches)
 
-        mock_config = promote.Config()
-        mock_config.config = config
-        mock_config.dimensions = config["dimensions"]
-        mock_config.sequence = config["sequence"]
-        mock_config.root = base_dir / "config"
+        mock_config = MockConfig(config, base_dir / "config")
 
         with (
             patch("promote.config", mock_config),
@@ -606,11 +570,7 @@ def test_complete_promotion_flow():
     with tempfile.TemporaryDirectory() as tmp_dir:
         base_dir = Path(tmp_dir)
 
-        mock_config = promote.Config()
-        mock_config.config = config
-        mock_config.dimensions = config["dimensions"]
-        mock_config.sequence = config["sequence"]
-        mock_config.root = base_dir / "config"
+        mock_config = MockConfig(config, base_dir / "config")
 
         with (
             patch("promote.config", mock_config),
@@ -678,11 +638,7 @@ def test_coalesce_patches_region_to_sector():
         ]
         create_test_filesystem(base_dir, patches)
 
-        mock_config = promote.Config()
-        mock_config.config = config
-        mock_config.dimensions = config["dimensions"]
-        mock_config.sequence = config["sequence"]
-        mock_config.root = base_dir / "config"
+        mock_config = MockConfig(config, base_dir / "config")
 
         with (
             patch("promote.config", mock_config),
@@ -726,11 +682,7 @@ def test_coalesce_patches_sector_to_environment():
         ]
         create_test_filesystem(base_dir, patches)
 
-        mock_config = promote.Config()
-        mock_config.config = config
-        mock_config.dimensions = config["dimensions"]
-        mock_config.sequence = config["sequence"]
-        mock_config.root = base_dir / "config"
+        mock_config = MockConfig(config, base_dir / "config")
 
         with (
             patch("promote.config", mock_config),
@@ -775,11 +727,7 @@ def test_coalesce_patches_mixed_levels():
         ]
         create_test_filesystem(base_dir, patches)
 
-        mock_config = promote.Config()
-        mock_config.config = config
-        mock_config.dimensions = config["dimensions"]
-        mock_config.sequence = config["sequence"]
-        mock_config.root = base_dir / "config"
+        mock_config = MockConfig(config, base_dir / "config")
 
         with (
             patch("promote.config", mock_config),
@@ -822,11 +770,7 @@ def test_coalesce_patches_incomplete_coverage():
         ]
         create_test_filesystem(base_dir, patches)
 
-        mock_config = promote.Config()
-        mock_config.config = config
-        mock_config.dimensions = config["dimensions"]
-        mock_config.sequence = config["sequence"]
-        mock_config.root = base_dir / "config"
+        mock_config = MockConfig(config, base_dir / "config")
 
         with (
             patch("promote.config", mock_config),
@@ -866,11 +810,7 @@ def test_coalesce_patches_already_at_higher_level():
         ]
         create_test_filesystem(base_dir, patches)
 
-        mock_config = promote.Config()
-        mock_config.config = config
-        mock_config.dimensions = config["dimensions"]
-        mock_config.sequence = config["sequence"]
-        mock_config.root = base_dir / "config"
+        mock_config = MockConfig(config, base_dir / "config")
 
         with (
             patch("promote.config", mock_config),
@@ -916,11 +856,7 @@ def test_coalesce_patches_cross_environment():
         ]
         create_test_filesystem(base_dir, patches)
 
-        mock_config = promote.Config()
-        mock_config.config = config
-        mock_config.dimensions = config["dimensions"]
-        mock_config.sequence = config["sequence"]
-        mock_config.root = base_dir / "config"
+        mock_config = MockConfig(config, base_dir / "config")
 
         with (
             patch("promote.config", mock_config),
@@ -975,11 +911,7 @@ def test_coalesce_patches_partial_cross_environment():
         ]
         create_test_filesystem(base_dir, patches)
 
-        mock_config = promote.Config()
-        mock_config.config = config
-        mock_config.dimensions = config["dimensions"]
-        mock_config.sequence = config["sequence"]
-        mock_config.root = base_dir / "config"
+        mock_config = MockConfig(config, base_dir / "config")
 
         with (
             patch("promote.config", mock_config),
@@ -1018,11 +950,7 @@ def test_coalesce_patches_empty_input():
     with tempfile.TemporaryDirectory() as tmp_dir:
         base_dir = Path(tmp_dir)
 
-        mock_config = promote.Config()
-        mock_config.config = config
-        mock_config.dimensions = config["dimensions"]
-        mock_config.sequence = config["sequence"]
-        mock_config.root = base_dir / "config"
+        mock_config = MockConfig(config, base_dir / "config")
 
         with (
             patch("promote.config", mock_config),
@@ -1055,11 +983,7 @@ def test_coalesce_patches_content_preservation():
         region2_content = "test: region2-specific-content"
         (region2_dir / "patch-001.yaml").write_text(region2_content)
 
-        mock_config = promote.Config()
-        mock_config.config = config
-        mock_config.dimensions = config["dimensions"]
-        mock_config.sequence = config["sequence"]
-        mock_config.root = base_dir / "config"
+        mock_config = MockConfig(config, base_dir / "config")
 
         with (
             patch("promote.config", mock_config),
@@ -1114,11 +1038,7 @@ applications:
 """
         (app_dir / "integration" / "patch-001.yaml").write_text(patch_content)
 
-        mock_config = promote.Config()
-        mock_config.config = config
-        mock_config.dimensions = config["dimensions"]
-        mock_config.sequence = config["sequence"]
-        mock_config.root = base_dir / "config"
+        mock_config = MockConfig(config, base_dir / "config")
 
         with (
             patch("promote.config", mock_config),
@@ -1164,11 +1084,7 @@ def test_no_final_consolidation_with_partial_coverage():
         values_file = app_dir / "values.yaml"
         values_file.write_text("applications:\n  test-app:\n    existing: config")
 
-        mock_config = promote.Config()
-        mock_config.config = config
-        mock_config.dimensions = config["dimensions"]
-        mock_config.sequence = config["sequence"]
-        mock_config.root = base_dir / "config"
+        mock_config = MockConfig(config, base_dir / "config")
 
         with (
             patch("promote.config", mock_config),
@@ -1263,11 +1179,7 @@ def test_promote_function():
         patches = ["integration/int-sector-1/us-central1"]
         create_test_filesystem(base_dir, patches)
 
-        mock_config = promote.Config()
-        mock_config.config = config
-        mock_config.dimensions = config["dimensions"]
-        mock_config.sequence = config["sequence"]
-        mock_config.root = base_dir / "config"
+        mock_config = MockConfig(config, base_dir / "config")
 
         with (
             patch("promote.config", mock_config),

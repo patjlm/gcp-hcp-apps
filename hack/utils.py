@@ -3,7 +3,6 @@
 Shared utilities for the gcp-hcp-apps project.
 """
 
-import sys
 from pathlib import Path
 from typing import Any, Dict, Iterator, Tuple
 
@@ -37,11 +36,12 @@ def deep_merge(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]
     return result
 
 
-def load_yaml(file_path: Path) -> Dict[str, Any]:
+def load_yaml(file_path: Path, check_empty: bool = False) -> Dict[str, Any]:
     """Load YAML file.
 
     Args:
         file_path: Path to the YAML file to load
+        check_empty: If True, raise ValueError if the file is empty or invalid
 
     Returns:
         Dictionary containing the parsed YAML content
@@ -49,9 +49,15 @@ def load_yaml(file_path: Path) -> Dict[str, Any]:
     Raises:
         FileNotFoundError: If the file doesn't exist
         yaml.YAMLError: If the file contains invalid YAML
+        ValueError: If check_empty is True and the file is empty or invalid
     """
     with open(file_path, "r") as f:
-        return yaml.safe_load(f)
+        data = yaml.safe_load(f)
+
+    if check_empty and not data:
+        raise ValueError(f"YAML file is empty: {file_path}")
+
+    return data
 
 
 def save_yaml(data: Dict[str, Any], file_path: Path, width: int = 1000) -> None:
@@ -67,27 +73,28 @@ def save_yaml(data: Dict[str, Any], file_path: Path, width: int = 1000) -> None:
         yaml.dump(data, f, default_flow_style=False, sort_keys=False, width=width)
 
 
-def load_config(config_path: Path | None = None) -> Dict[str, Any]:
-    """Load the main configuration file.
+class Config:
+    def __init__(self, root: Path | None = None):
+        self.root = Path(__file__).parent.parent / "config" if root is None else root
+        config_yaml = self.root / "config.yaml"
+        self.config = load_yaml(config_yaml)
+        self.dimensions = tuple(self.config["dimensions"])
+        self.sequence = self.config["sequence"]
+        self.cluster_types = self.config["cluster_types"]
 
-    Args:
-        config_path: Optional path to config.yaml. If None, uses default location.
+    def path(self, cluster_type: str, application: str = None) -> Path:
+        if application is None:
+            return self.root / cluster_type
+        return self.root / cluster_type / application
 
-    Returns:
-        Dictionary containing the parsed configuration
-
-    Raises:
-        SystemExit: If config.yaml is not found
-    """
-    if config_path is None:
-        # Default: config/config.yaml relative to the calling script
-        config_path = Path(__file__).parent.parent / "config" / "config.yaml"
-
-    if not config_path.exists():
-        print(f"ERROR: config.yaml not found at {config_path}")
-        sys.exit(1)
-
-    return load_yaml(config_path)
+    def components(self, cluster_type: str) -> list[str]:
+        """Find all components for a cluster type."""
+        config_dir = self.root / cluster_type
+        return [
+            component_dir.name
+            for component_dir in config_dir.iterdir()
+            if component_dir.is_dir() and (component_dir / "values.yaml").exists()
+        ]
 
 
 def walk_dimensions(
@@ -110,7 +117,9 @@ def walk_dimensions(
 
     Example:
         For a config with environments->sectors->regions:
-        yields ("integration", "int-sector-1", "us-central1")
+        yield ("integration",)
+        yield ("integration", "int-sector-1")
+        yield ("integration", "int-sector-1", "us-central1")
     """
     if not dimensions:
         return

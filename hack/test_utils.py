@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 import yaml
-from utils import deep_merge, load_config, load_yaml, save_yaml, walk_dimensions
+from utils import Config, deep_merge, load_yaml, save_yaml, walk_dimensions
 
 
 class TestDeepMerge:
@@ -276,24 +276,27 @@ class TestConfigLoading:
 
     def test_load_config_with_explicit_path(self):
         """Test loading config with explicit path."""
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_dir = Path(temp_dir)
+            config_file = config_dir / "config.yaml"
             config_data = {
                 "dimensions": ["env", "sector", "region"],
                 "sequence": {"env": [{"name": "test"}]},
+                "cluster_types": [{"name": "test-cluster"}],
             }
-            yaml.dump(config_data, f)
-            temp_path = Path(f.name)
+            with open(config_file, "w") as f:
+                yaml.dump(config_data, f)
 
-        try:
-            result = load_config(temp_path)
-            assert result == config_data
-        finally:
-            temp_path.unlink()
+            config = Config(config_dir)
+            assert config.config == config_data
+            assert config.dimensions == tuple(config_data["dimensions"])
+            assert config.sequence == config_data["sequence"]
+            assert config.cluster_types == config_data["cluster_types"]
 
     def test_load_config_file_not_found_exits(self):
-        """Test load_config exits when file not found."""
-        with pytest.raises(SystemExit):
-            load_config(Path("/nonexistent/config.yaml"))
+        """Test Config constructor raises FileNotFoundError when file not found."""
+        with pytest.raises(FileNotFoundError):
+            Config(Path("/nonexistent"))
 
 
 class TestWalkDimensions:

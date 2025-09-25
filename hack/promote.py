@@ -18,17 +18,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
-from utils import deep_merge, load_config, load_yaml, save_yaml, walk_dimensions
-
-
-class Config:
-    def __init__(self, root: Path | None = None):
-        self.root = Path(__file__).parent.parent / "config" if root is None else root
-        config_yaml = self.root / "config.yaml"
-        self.config = load_config(config_yaml)
-        self.dimensions = tuple(self.config["dimensions"])
-        self.sequence = self.config["sequence"]
-
+from utils import Config, deep_merge, load_yaml, save_yaml, walk_dimensions
 
 config = Config()
 
@@ -51,7 +41,7 @@ DEFAULT_PROMOTION_LEVEL_NUMBER = (
 
 def find_patches(cluster_type: str, app: str, patch_name: str) -> Iterator[Patch]:
     """Find all patches in sequence order."""
-    app_dir = config.root / cluster_type / app
+    app_dir = config.path(cluster_type, app)
 
     for path_parts in walk_dimensions(config.sequence, config.dimensions):
         patch = Patch(
@@ -115,9 +105,7 @@ def get_next_location(patches: list[Patch], cluster_type: str, app: str) -> Path
             continue  # Do not promote to full environments
 
         return (
-            config.root
-            / cluster_type
-            / app
+            config.path(cluster_type, app)
             / Path(*dimension)
             / f"{current_patch.name}.yaml"
         )
@@ -172,8 +160,6 @@ def coalesce_patches(cluster_type: str, application: str, patch_name: str) -> No
 
     patch_by_dimensions = {p.dimensions: p for p in patches}
 
-    print("Coalescing patches")
-
     for idx in range(1, len(config.dimensions)):
         root_dimensions: dict[tuple[str, ...], list[tuple[str, ...]]] = {}
         for d in all_dimensions:
@@ -183,7 +169,6 @@ def coalesce_patches(cluster_type: str, application: str, patch_name: str) -> No
         for root, dims in root_dimensions.items():
             # continue if a higher level is patched
             if is_patched(root, patch_by_dimensions.keys()):
-                print(f"  DEBUG: skipping {root} as it is already patched")
                 continue
 
             if root in patch_by_dimensions:
@@ -191,18 +176,14 @@ def coalesce_patches(cluster_type: str, application: str, patch_name: str) -> No
                 print(f"MIGHT NOT BE NEEDED WITH THE TEST ABOVE: {root}")
                 continue
 
-            print(f"  Checking {root}...")
             if all(is_patched(dim, patch_by_dimensions.keys()) for dim in dims):
                 # we can coalesce all matching patches into root
-                print(f"    Coalescing {dims}")
                 new_patch = Patch(
                     cluster_type,
                     application,
                     root,
                     patch_name,
-                    config.root
-                    / cluster_type
-                    / application
+                    config.path(cluster_type, application)
                     / Path(*root)
                     / f"{patch_name}.yaml",
                 )
@@ -221,8 +202,7 @@ def coalesce_patches(cluster_type: str, application: str, patch_name: str) -> No
     root_patch_names = {p.dimensions[0] for p in root_patches}
 
     if root_patch_names == all_root_names:
-        print("  Final consolidation to values.yaml")
-        values_file = config.root / cluster_type / application / "values.yaml"
+        values_file = config.path(cluster_type, application) / "values.yaml"
         merge_patch_into_values(root_patches[0], values_file)
 
         # Remove all root-level patches

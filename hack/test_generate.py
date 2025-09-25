@@ -20,9 +20,18 @@ sys.path.append(str(Path(__file__).parent))
 from generate import (
     Target,
     discover_targets,
-    find_components,
     merge_component_values,
 )
+from utils import Config
+
+
+class MockConfig:
+    """Mock Config class for testing."""
+
+    def __init__(self, config_dict):
+        self.dimensions = tuple(config_dict["dimensions"])
+        self.sequence = config_dict["sequence"]
+        self.cluster_types = config_dict.get("cluster_types", [])
 
 
 class TestTargetDiscovery:
@@ -50,7 +59,7 @@ class TestTargetDiscovery:
             },
         }
 
-        targets = discover_targets(config)
+        targets = discover_targets(MockConfig(config))
 
         assert len(targets) == 2
         assert Target(["integration", "int-sector-1", "us-central1"]) in targets
@@ -81,7 +90,7 @@ class TestTargetDiscovery:
             },
         }
 
-        targets = discover_targets(config)
+        targets = discover_targets(MockConfig(config))
 
         assert len(targets) == 2
         assert Target(["integration", "int-sector-1", "us-central1"]) in targets
@@ -97,6 +106,18 @@ class TestApplicationDiscovery:
             # Create test structure
             config_dir = Path(temp_dir) / "config"
             config_dir.mkdir()
+
+            # Create a minimal config.yaml
+            config_yaml = config_dir / "config.yaml"
+            config_yaml.write_text("""
+dimensions: ["environments"]
+sequence:
+  environments:
+    - name: test
+cluster_types:
+  - name: management-cluster
+""")
+
             cluster_dir = config_dir / "management-cluster"
             cluster_dir.mkdir()
 
@@ -110,15 +131,9 @@ class TestApplicationDiscovery:
             # Create a directory without values.yaml (should be ignored)
             (cluster_dir / "incomplete-app").mkdir()
 
-            # Change working directory to temp dir instead of mocking Path
-            import os
-
-            original_cwd = os.getcwd()
-            try:
-                os.chdir(temp_dir)
-                apps = find_components("management-cluster")
-            finally:
-                os.chdir(original_cwd)
+            # Use Config with the temp config directory
+            config = Config(config_dir)
+            apps = config.components("management-cluster")
 
             assert sorted(apps) == ["cert-manager", "prometheus"]
 
@@ -234,7 +249,7 @@ class TestIntegration:
             },
         }
 
-        targets = discover_targets(config)
+        targets = discover_targets(MockConfig(config))
 
         # Verify we get the expected number of targets
         assert len(targets) == 4
@@ -253,31 +268,39 @@ class TestIntegration:
     def test_application_discovery_with_mock_structure(self):
         """Test application discovery with mock directory structure."""
         with tempfile.TemporaryDirectory() as temp_dir:
+            # Create test structure
+            config_dir = Path(temp_dir) / "config"
+            config_dir.mkdir()
+
+            # Create a minimal config.yaml
+            config_yaml = config_dir / "config.yaml"
+            config_yaml.write_text("""
+dimensions: ["environments"]
+sequence:
+  environments:
+    - name: test
+cluster_types:
+  - name: management-cluster
+""")
+
             # Create mock management-cluster structure
-            cluster_dir = Path(temp_dir) / "config" / "management-cluster"
-            cluster_dir.mkdir(parents=True)
+            cluster_dir = config_dir / "management-cluster"
+            cluster_dir.mkdir()
 
             # Create app directories with values.yaml
-            (cluster_dir / "prometheus" / "values.yaml").parent.mkdir()
+            (cluster_dir / "prometheus").mkdir()
             (cluster_dir / "prometheus" / "values.yaml").touch()
-            (cluster_dir / "cert-manager" / "values.yaml").parent.mkdir()
+            (cluster_dir / "cert-manager").mkdir()
             (cluster_dir / "cert-manager" / "values.yaml").touch()
 
-            with patch("generate.Path") as mock_path:
+            # Use Config with the temp config directory
+            config = Config(config_dir)
+            apps = config.components("management-cluster")
 
-                def path_side_effect(path_str):
-                    if path_str == "config":
-                        return Path(temp_dir) / "config"
-                    return Path(path_str)
-
-                mock_path.side_effect = path_side_effect
-
-                apps = find_components("management-cluster")
-
-                # Should find our mock applications
-                assert "prometheus" in apps
-                assert "cert-manager" in apps
-                assert len(apps) == 2
+            # Should find our mock applications
+            assert "prometheus" in apps
+            assert "cert-manager" in apps
+            assert len(apps) == 2
 
     def test_value_merging_with_mock_files(self):
         """Test value merging with mock config files."""
@@ -754,14 +777,14 @@ class TestValidation:
 
     def test_get_patch_paths_function(self):
         """Test the patch path extraction function."""
-        from generate import get_patch_paths
+        from generate import get_patched_fields
 
         # Simple patch
         patch_data = {
             "applications": {"prometheus": {"source": {"targetRevision": "77.9.0"}}}
         }
 
-        paths = get_patch_paths(patch_data)
+        paths = get_patched_fields(patch_data)
         expected_paths = ["applications.prometheus.source.targetRevision"]
         assert paths == expected_paths
 
@@ -776,7 +799,7 @@ class TestValidation:
             }
         }
 
-        paths = get_patch_paths(complex_patch)
+        paths = get_patched_fields(complex_patch)
         expected_paths = [
             "applications.prometheus.source.targetRevision",
             "applications.prometheus.syncPolicy.syncOptions",
@@ -785,14 +808,32 @@ class TestValidation:
         assert sorted(paths) == sorted(expected_paths)
 
     def test_invalid_cluster_type_raises_error(self):
-        """Test that invalid cluster type raises FileNotFoundError."""
-        with pytest.raises(FileNotFoundError, match="Config directory not found"):
-            find_components("nonexistent-cluster-type")
+        """Test that invalid cluster type raises OSError."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Create test structure with valid config
+            config_dir = Path(temp_dir) / "config"
+            config_dir.mkdir()
+
+            # Create a minimal config.yaml
+            config_yaml = config_dir / "config.yaml"
+            config_yaml.write_text("""
+dimensions: ["environments"]
+sequence:
+  environments:
+    - name: test
+cluster_types:
+  - name: management-cluster
+""")
+
+            config = Config(config_dir)
+            # Should raise OSError when trying to iterate nonexistent directory
+            with pytest.raises(OSError):
+                config.components("nonexistent-cluster-type")
 
     def test_empty_config_sequence_returns_empty_targets(self):
         """Test that empty sequence returns no targets."""
         config = {"dimensions": ["environments", "sectors", "regions"], "sequence": {}}
-        targets = discover_targets(config)
+        targets = discover_targets(MockConfig(config))
         assert targets == []
 
     def test_config_missing_sequence_raises_error(self):
@@ -801,7 +842,7 @@ class TestValidation:
 
         # Should raise KeyError when trying to access sequence
         with pytest.raises(KeyError):
-            discover_targets(config)
+            MockConfig(config)
 
 
 if __name__ == "__main__":
