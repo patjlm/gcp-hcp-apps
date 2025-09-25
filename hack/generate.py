@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 import yaml
-from utils import Config, deep_merge, load_yaml, save_yaml, walk_dimensions
+from utils import Config, deep_merge, load_yaml, save_yaml
 
 
 @dataclass
@@ -55,7 +55,7 @@ def discover_targets(config: Config) -> List[Target]:
     all possible environment/sector/region (or other) combinations as deployment targets.
     """
     targets = []
-    for path_parts in walk_dimensions(config.sequence, config.dimensions):
+    for path_parts in config.all_dimensions:
         # Only keep complete leaf paths (full dimensional depth)
         if len(path_parts) == len(config.dimensions):
             targets.append(Target(list(path_parts)))
@@ -170,7 +170,7 @@ def render_target(cluster_type: str, target: Target, config: Config) -> None:
 
     # Create target directory
     target_dir = Path("rendered") / cluster_type / target.path
-    target_dir.mkdir(parents=True, exist_ok=True)
+    (target_dir / "templates").mkdir(exist_ok=True)
 
     # Find components for this cluster type
     components = config.components(cluster_type)
@@ -205,9 +205,6 @@ def render_target(cluster_type: str, target: Target, config: Config) -> None:
                 text=True,
                 check=True,
             )
-
-            # Create templates directory
-            (target_dir / "templates").mkdir(exist_ok=True)
 
             # Parse all YAML documents and save each resource to its own file
             for doc in yaml.safe_load_all(result.stdout):

@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 import yaml
-from utils import Config, deep_merge, load_yaml, save_yaml, walk_dimensions
+from utils import Config, deep_merge, load_yaml, save_yaml, _walk_dimensions
 
 
 class TestDeepMerge:
@@ -307,7 +307,7 @@ class TestWalkDimensions:
         sequence = {"environments": [{"name": "env1"}, {"name": "env2"}]}
         dimensions = ("environments",)
 
-        paths = list(walk_dimensions(sequence, dimensions))
+        paths = list(_walk_dimensions(sequence, dimensions))
         expected = [("env1",), ("env2",)]
         assert paths == expected
 
@@ -320,7 +320,7 @@ class TestWalkDimensions:
         }
         dimensions = ("environments", "sectors")
 
-        paths = list(walk_dimensions(sequence, dimensions))
+        paths = list(_walk_dimensions(sequence, dimensions))
         expected = [("env1",), ("env1", "sector1"), ("env1", "sector2")]
         assert paths == expected
 
@@ -341,7 +341,7 @@ class TestWalkDimensions:
         }
         dimensions = ("environments", "sectors", "regions")
 
-        paths = list(walk_dimensions(sequence, dimensions))
+        paths = list(_walk_dimensions(sequence, dimensions))
         expected = [
             ("env1",),
             ("env1", "sector1"),
@@ -355,7 +355,7 @@ class TestWalkDimensions:
         sequence = {"environments": [{"name": "env1"}]}
         dimensions = ("missing_key",)
 
-        paths = list(walk_dimensions(sequence, dimensions))
+        paths = list(_walk_dimensions(sequence, dimensions))
         assert paths == []
 
     def test_walk_dimensions_empty_dimensions(self):
@@ -363,7 +363,7 @@ class TestWalkDimensions:
         sequence = {"environments": [{"name": "env1"}]}
         dimensions = ()
 
-        paths = list(walk_dimensions(sequence, dimensions))
+        paths = list(_walk_dimensions(sequence, dimensions))
         assert paths == []
 
     def test_walk_dimensions_complex_structure(self):
@@ -389,7 +389,7 @@ class TestWalkDimensions:
         }
         dimensions = ("environments", "sectors", "regions")
 
-        paths = list(walk_dimensions(sequence, dimensions))
+        paths = list(_walk_dimensions(sequence, dimensions))
         expected = [
             ("integration",),
             ("integration", "int-sector-1"),

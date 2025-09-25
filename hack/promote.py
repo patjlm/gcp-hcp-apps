@@ -18,7 +18,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
-from utils import Config, deep_merge, load_yaml, save_yaml, walk_dimensions
+from utils import Config, deep_merge, load_yaml, save_yaml
 
 config = Config()
 
@@ -74,7 +74,7 @@ DEFAULT_PROMOTION_LEVEL_NUMBER = (
 
 def find_patches(cluster_type: str, component: str, patch_name: str) -> Iterator[Patch]:
     """Find all patches in sequence order."""
-    for path_parts in walk_dimensions(config.sequence, config.dimensions):
+    for path_parts in config.all_dimensions:
         patch = Patch(
             cluster_type=cluster_type,
             component=component,
@@ -102,7 +102,7 @@ def detect_gaps(patches: list[Patch]) -> None:
     latest_patch = patches[-1]
 
     patched_dimensions = [p.dimensions for p in patches]
-    all_dimensions = list(walk_dimensions(config.sequence, config.dimensions))
+    all_dimensions = config.all_dimensions
 
     for dimension in all_dimensions:
         if dimension == latest_patch.dimensions:
@@ -121,7 +121,7 @@ def get_next_location(patches: list[Patch]) -> Path | None:
     patched_dimensions = [p.dimensions for p in patches]
     current_patch_dimension_reached = False
 
-    for dimension in walk_dimensions(config.sequence, config.dimensions):
+    for dimension in config.all_dimensions:
         if dimension == current_patch.dimensions:
             current_patch_dimension_reached = True
             continue
@@ -196,7 +196,7 @@ def coalesce_patches(cluster_type: str, component: str, patch_name: str) -> None
         return
 
     # Get all possible dimensions
-    all_dimensions = list(walk_dimensions(config.sequence, config.dimensions))
+    all_dimensions = config.all_dimensions
 
     patch_by_dimensions = {p.dimensions: p for p in patches}
 

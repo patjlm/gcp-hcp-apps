@@ -73,31 +73,7 @@ def save_yaml(data: Dict[str, Any], file_path: Path, width: int = 1000) -> None:
         yaml.dump(data, f, default_flow_style=False, sort_keys=False, width=width)
 
 
-class Config:
-    def __init__(self, root: Path | None = None):
-        self.root = Path(__file__).parent.parent / "config" if root is None else root
-        config_yaml = self.root / "config.yaml"
-        self.config = load_yaml(config_yaml)
-        self.dimensions = tuple(self.config["dimensions"])
-        self.sequence = self.config["sequence"]
-        self.cluster_types = self.config["cluster_types"]
-
-    def path(self, cluster_type: str, component: str | None = None) -> Path:
-        if component is None:
-            return self.root / cluster_type
-        return self.root / cluster_type / component
-
-    def components(self, cluster_type: str) -> list[str]:
-        """Find all components for a cluster type."""
-        config_dir = self.root / cluster_type
-        return [
-            component_dir.name
-            for component_dir in config_dir.iterdir()
-            if component_dir.is_dir() and (component_dir / "values.yaml").exists()
-        ]
-
-
-def walk_dimensions(
+def _walk_dimensions(
     sequence: Dict[str, Any],
     dimensions: Tuple[str, ...],
     ancestors: Tuple[str, ...] = (),
@@ -140,6 +116,34 @@ def walk_dimensions(
 
             if next_dimensions:
                 # Recurse deeper into hierarchy
-                yield from walk_dimensions(
+                yield from _walk_dimensions(
                     dimension_item, next_dimensions, new_ancestors
                 )
+
+class Config:
+    def __init__(self, root: Path | None = None):
+        self.root = Path(__file__).parent.parent / "config" if root is None else root
+        config_yaml = self.root / "config.yaml"
+        self.config = load_yaml(config_yaml)
+        self.dimensions = tuple(self.config["dimensions"])
+        self.sequence = self.config["sequence"]
+        self.cluster_types = self.config["cluster_types"]
+
+    def path(self, cluster_type: str, component: str | None = None) -> Path:
+        if component is None:
+            return self.root / cluster_type
+        return self.root / cluster_type / component
+
+    def components(self, cluster_type: str) -> list[str]:
+        """Find all components for a cluster type."""
+        config_dir = self.root / cluster_type
+        return [
+            component_dir.name
+            for component_dir in config_dir.iterdir()
+            if component_dir.is_dir() and (component_dir / "values.yaml").exists()
+        ]
+
+    @property
+    def all_dimensions(self) -> list[Tuple[str, ...]]:
+        """Get all possible dimension paths in sequence order."""
+        return list(_walk_dimensions(self.sequence, self.dimensions))

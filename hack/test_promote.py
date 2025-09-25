@@ -21,22 +21,19 @@ import pytest
 sys.path.insert(0, os.path.dirname(__file__))
 
 import promote
+from utils import Config, _walk_dimensions
 
 
-class MockConfig:
-    """Mock Config class for testing."""
+class MockConfig(Config):
+    """Mock Config class for testing that inherits from Config."""
 
     def __init__(self, config_dict, root_path):
+        # Don't call super().__init__() since we're mocking
         self.config = config_dict
         self.dimensions = tuple(config_dict["dimensions"])
         self.sequence = config_dict["sequence"]
         self.cluster_types = config_dict.get("cluster_types", [])
         self.root = root_path
-
-    def path(self, cluster_type: str, application: str = None) -> Path:
-        if application is None:
-            return self.root / cluster_type
-        return self.root / cluster_type / application
 
 
 def create_test_config():
@@ -205,9 +202,7 @@ def test_walk_function():
     config = create_test_config()
 
     # Test all possible walk paths
-    all_paths = list(
-        promote.walk_dimensions(config["sequence"], tuple(config["dimensions"]))
-    )
+    all_paths = list(_walk_dimensions(config["sequence"], tuple(config["dimensions"])))
 
     expected_paths = [
         ("env1",),
