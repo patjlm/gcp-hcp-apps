@@ -82,10 +82,10 @@ class Config:
         self.sequence = self.config["sequence"]
         self.cluster_types = self.config["cluster_types"]
 
-    def path(self, cluster_type: str, application: str | None = None) -> Path:
-        if application is None:
+    def path(self, cluster_type: str, component: str | None = None) -> Path:
+        if component is None:
             return self.root / cluster_type
-        return self.root / cluster_type / application
+        return self.root / cluster_type / component
 
     def components(self, cluster_type: str) -> list[str]:
         """Find all components for a cluster type."""

@@ -26,14 +26,14 @@ config = Config()
 @dataclass
 class Patch:
     cluster_type: str
-    application: str
+    component: str
     dimensions: tuple[str, ...]
     name: str
 
     @property
     def path(self) -> Path:
         return (
-            config.path(self.cluster_type, self.application)
+            config.path(self.cluster_type, self.component)
             / Path(*self.dimensions)
             / f"{self.name}.yaml"
         )
@@ -41,10 +41,28 @@ class Patch:
     def duplicate(self, dimensions: tuple[str, ...]) -> "Patch":
         return Patch(
             cluster_type=self.cluster_type,
-            application=self.application,
+            component=self.component,
             dimensions=dimensions,
             name=self.name,
         )
+
+    def _load(self) -> None:
+        data = load_yaml(self.path)
+        self._metadata = data.get("metadata", {})
+        del data["metadata"]
+        self._content = data
+
+    @property
+    def metadata(self) -> dict:
+        if not hasattr(self, "_metadata"):
+            self._load()
+        return self._metadata
+
+    @property
+    def content(self) -> dict:
+        if not hasattr(self, "_content"):
+            self._load()
+        return self._content
 
 
 # Default level to promote to when moving between top-level dimensions
@@ -54,12 +72,12 @@ DEFAULT_PROMOTION_LEVEL_NUMBER = (
 )  # sectors = index 1 + 1 = 2
 
 
-def find_patches(cluster_type: str, app: str, patch_name: str) -> Iterator[Patch]:
+def find_patches(cluster_type: str, component: str, patch_name: str) -> Iterator[Patch]:
     """Find all patches in sequence order."""
     for path_parts in walk_dimensions(config.sequence, config.dimensions):
         patch = Patch(
             cluster_type=cluster_type,
-            application=app,
+            component=component,
             dimensions=path_parts,
             name=patch_name,
         )
@@ -139,18 +157,12 @@ def promote(patches: list[Patch]) -> None:
 
 
 def merge_patch_into_values(patch: Patch, values_file: Path) -> None:
-    """Merge patch content into values.yaml, excluding metadata."""
-    # Load patch content and strip metadata
-    patch_data = load_yaml(patch.path)
-
-    if "metadata" in patch_data:
-        del patch_data["metadata"]
-
+    """Merge patch content into values.yaml"""
     # Load existing values.yaml
     values_data = load_yaml(values_file, check_empty=True)
 
     # Deep merge patch into values
-    values_data = deep_merge(values_data, patch_data)
+    values_data = deep_merge(values_data, patch.content)
 
     # Write merged content back
     save_yaml(values_data, values_file)
@@ -176,10 +188,10 @@ def _perform_coalescing(
         del patch_by_dimensions[patch.dimensions]
 
 
-def coalesce_patches(cluster_type: str, application: str, patch_name: str) -> None:
+def coalesce_patches(cluster_type: str, component: str, patch_name: str) -> None:
     """Coalesce patches that can be promoted together."""
     # Find all current patches
-    patches = list(find_patches(cluster_type, application, patch_name))
+    patches = list(find_patches(cluster_type, component, patch_name))
     if not patches:
         return
 
@@ -212,7 +224,7 @@ def coalesce_patches(cluster_type: str, application: str, patch_name: str) -> No
     root_patch_names = {p.dimensions[0] for p in root_patches}
 
     if root_patch_names == all_root_names:
-        values_file = config.path(cluster_type, application) / "values.yaml"
+        values_file = config.path(cluster_type, component) / "values.yaml"
         merge_patch_into_values(root_patches[0], values_file)
 
         # Remove all root-level patches
@@ -223,14 +235,14 @@ def coalesce_patches(cluster_type: str, application: str, patch_name: str) -> No
 def main():
     parser = argparse.ArgumentParser(description="Promote patches through the fleet")
     parser.add_argument("cluster_type", help="e.g. management-cluster")
-    parser.add_argument("application", help="e.g. hypershift")
+    parser.add_argument("component", help="e.g. hypershift")
     parser.add_argument("patch_name", help="e.g. patch-001")
 
     args = parser.parse_args()
 
-    patches = list(find_patches(args.cluster_type, args.application, args.patch_name))
+    patches = list(find_patches(args.cluster_type, args.component, args.patch_name))
     if not patches:
-        print(f"ERROR: No patches found for {args.application}")
+        print(f"ERROR: No patches found for {args.component}")
         sys.exit(1)
 
     # Check for gaps first
@@ -240,13 +252,13 @@ def main():
     promote(patches)
 
     # Coalesce patches if possible
-    coalesce_patches(args.cluster_type, args.application, args.patch_name)
+    coalesce_patches(args.cluster_type, args.component, args.patch_name)
 
     print("✓ Promoted successfully")
     print("\nNext steps:")
     print("  make generate")
     print("  git add config/ rendered/")
-    print(f"  git commit -m 'Promote {args.patch_name} for {args.application}'")
+    print(f"  git commit -m 'Promote {args.patch_name} for {args.component}'")
 
 
 if __name__ == "__main__":

@@ -94,14 +94,10 @@ def load_base_component_values(
 
     # Now apply defaults to each used section ("applications", "applicationsets", etc.)
     for section_name in component_values.keys():
-        section_defaults = defaults_to_apply[section_name]
-        default_values = section_defaults["default"]
+        default_values = defaults_to_apply[section_name]["default"]
         # Apply defaults to each item in this section
         for item_name in component_values[section_name]:
-            if section_name not in merged:
-                merged[section_name] = {}
-            if item_name not in merged[section_name]:
-                merged[section_name][item_name] = {}
+            merged[section_name].setdefault(item_name, {})
             # Merge defaults with the item (item takes precedence)
             merged[section_name][item_name] = deep_merge(
                 default_values, merged[section_name][item_name]
@@ -110,18 +106,35 @@ def load_base_component_values(
     return merged
 
 
+def warn_on_conflicts(
+    patch_file: Path,
+    patch_data: Dict[str, Any],
+    applied_patches: List[tuple[Path, List[str]]],
+) -> None:
+    """Check for conflicts with previously applied patches, warn if found, and track this patch."""
+    patch_paths = get_patched_fields(patch_data)
+
+    for prev_patch_file, prev_paths in applied_patches:
+        conflicts = set(patch_paths) & set(prev_paths)
+        if conflicts:
+            print("WARNING: Patch conflict detected:")
+            print(f"  {patch_file} conflicts with {prev_patch_file}")
+            print(f"  Conflicting paths: {', '.join(sorted(conflicts))}")
+
+    applied_patches.append((patch_file, patch_paths))
+
+
 def merge_component_values(
-    cluster_type: str, component_name: str, target: Target
+    config: Config, cluster_type: str, component_name: str, target: Target
 ) -> Dict[str, Any]:
     """Merge component values for a specific target."""
-    base_path = Path("config") / cluster_type
+    component_dir = config.path(cluster_type, component_name)
 
     # Load base component values with defaults
     merged = load_base_component_values(cluster_type, component_name)
 
     # e.g., for ["production", "prod-sector-1", "us-east1"]
     # try: production/, production/prod-sector-1/, production/prod-sector-1/us-east1/
-    component_dir = base_path / component_name
     for i in range(len(target.path_parts)):
         dimension_dir = component_dir / "/".join(target.path_parts[: i + 1])
 
@@ -132,26 +145,21 @@ def merge_component_values(
             merged = deep_merge(merged, override)
 
         # Apply patches second (in filename order)
-        if dimension_dir.exists():
-            applied_patches: List[tuple[Path, List[str]]] = []
+        if not dimension_dir.exists():
+            continue
 
-            for patch_file in sorted(dimension_dir.glob("patch-*.yaml")):
-                patch_data = load_yaml(patch_file)
-                # Drop metadata section, apply rest using existing deep_merge
-                if "metadata" in patch_data:
-                    del patch_data["metadata"]
+        applied_patches: List[tuple[Path, List[str]]] = []
 
-                # Check for conflicts with previously applied patches
-                patch_paths = get_patched_fields(patch_data)
-                for prev_patch_file, prev_paths in applied_patches:
-                    conflicts = set(patch_paths) & set(prev_paths)
-                    if conflicts:
-                        print("WARNING: Patch conflict detected:")
-                        print(f"  {patch_file} conflicts with {prev_patch_file}")
-                        print(f"  Conflicting paths: {', '.join(sorted(conflicts))}")
+        for patch_file in sorted(dimension_dir.glob("patch-*.yaml")):
+            patch_data = load_yaml(patch_file)
+            # Drop metadata section, apply rest using existing deep_merge
+            if "metadata" in patch_data:
+                del patch_data["metadata"]
 
-                applied_patches.append((patch_file, patch_paths))
-                merged = deep_merge(merged, patch_data)
+            # Check for conflicts with previously applied patches
+            warn_on_conflicts(patch_file, patch_data, applied_patches)
+
+            merged = deep_merge(merged, patch_data)
 
     return merged
 
@@ -170,7 +178,9 @@ def render_target(cluster_type: str, target: Target, config: Config) -> None:
     # Merge values for all components
     merged_values: Dict[str, Any] = {}
     for component_name in sorted(components):
-        component_values = merge_component_values(cluster_type, component_name, target)
+        component_values = merge_component_values(
+            config, cluster_type, component_name, target
+        )
         merged_values = deep_merge(merged_values, component_values)
 
     # Create temporary values file for helm template

@@ -25,13 +25,16 @@ from generate import (
 from utils import Config
 
 
-class MockConfig:
-    """Mock Config class for testing."""
+class MockConfig(Config):
+    """Mock Config class for testing that inherits from Config."""
 
-    def __init__(self, config_dict):
+    def __init__(self, config_dict, temp_dir=None):
+        # Don't call super().__init__() since we're mocking
         self.dimensions = tuple(config_dict["dimensions"])
         self.sequence = config_dict["sequence"]
         self.cluster_types = config_dict.get("cluster_types", [])
+        self.config = config_dict
+        self.root = Path(temp_dir) if temp_dir else Path(".")
 
 
 class TestTargetDiscovery:
@@ -182,9 +185,18 @@ class TestApplicationValueMerging:
 
                 mock_path.side_effect = path_side_effect
 
+                # Create a mock config for the test
+                mock_config = MockConfig(
+                    {
+                        "dimensions": ["environments", "sectors", "regions"],
+                        "sequence": {"environments": []},
+                    },
+                    temp_dir,
+                )
+
                 target = Target(["production", "prod-sector-1", "us-east1"])
                 result = merge_component_values(
-                    "management-cluster", "prometheus", target
+                    mock_config, "management-cluster", "prometheus", target
                 )
 
             # Verify merging
@@ -359,9 +371,18 @@ cluster_types:
 
                 mock_path.side_effect = path_side_effect
 
+                # Create a mock config for the test
+                mock_config = MockConfig(
+                    {
+                        "dimensions": ["environments", "sectors", "regions"],
+                        "sequence": {"environments": []},
+                    },
+                    temp_dir,
+                )
+
                 target = Target(["production"])
                 result = merge_component_values(
-                    "management-cluster", "prometheus", target
+                    mock_config, "management-cluster", "prometheus", target
                 )
 
                 # Should have merged values
@@ -413,9 +434,20 @@ class TestValidation:
                 os.chdir(temp_dir)
                 target = Target(["integration", "int-sector-1", "us-central1"])
 
+                # Create a mock config for the test
+                mock_config = MockConfig(
+                    {
+                        "dimensions": ["environments", "sectors", "regions"],
+                        "sequence": {"environments": []},
+                    },
+                    config_dir,
+                )
+
                 # Should raise FileNotFoundError when trying to load missing values.yaml
                 with pytest.raises(FileNotFoundError):
-                    merge_component_values("management-cluster", "prometheus", target)
+                    merge_component_values(
+                        mock_config, "management-cluster", "prometheus", target
+                    )
             finally:
                 os.chdir(original_cwd)
 
@@ -458,9 +490,21 @@ class TestValidation:
 
                 mock_path.side_effect = path_side_effect
 
+                # Create a mock config for the test
+                mock_config_dict = {
+                    "dimensions": ["environments", "sectors", "regions"],
+                    "sequence": {"environments": []},
+                }
+                mock_config = MockConfig(mock_config_dict)
+                mock_config.path = (
+                    lambda cluster_type, app=None: Path(temp_dir) / cluster_type
+                    if app is None
+                    else Path(temp_dir) / cluster_type / app
+                )
+
                 target = Target(["integration", "int-sector-1", "us-central1"])
                 result = merge_component_values(
-                    "management-cluster", "prometheus", target
+                    mock_config, "management-cluster", "prometheus", target
                 )
 
             # Should work without defaults, just return app values
@@ -552,9 +596,18 @@ class TestValidation:
 
                 mock_path.side_effect = path_side_effect
 
+                # Create a mock config for the test
+                mock_config = MockConfig(
+                    {
+                        "dimensions": ["environments", "sectors", "regions"],
+                        "sequence": {"environments": []},
+                    },
+                    temp_dir,
+                )
+
                 target = Target(["production"])
                 result = merge_component_values(
-                    "management-cluster", "prometheus", target
+                    mock_config, "management-cluster", "prometheus", target
                 )
 
             # Verify merging order: defaults -> base -> production values -> production patch
@@ -628,9 +681,18 @@ class TestValidation:
 
                 mock_path.side_effect = path_side_effect
 
+                # Create a mock config for the test
+                mock_config = MockConfig(
+                    {
+                        "dimensions": ["environments", "sectors", "regions"],
+                        "sequence": {"environments": []},
+                    },
+                    temp_dir,
+                )
+
                 target = Target(["integration"])
                 result = merge_component_values(
-                    "management-cluster", "prometheus", target
+                    mock_config, "management-cluster", "prometheus", target
                 )
 
             # Should have the last patch version (002 overrides 001)
@@ -685,9 +747,18 @@ class TestValidation:
 
                 mock_path.side_effect = path_side_effect
 
+                # Create a mock config for the test
+                mock_config = MockConfig(
+                    {
+                        "dimensions": ["environments", "sectors", "regions"],
+                        "sequence": {"environments": []},
+                    },
+                    temp_dir,
+                )
+
                 target = Target(["integration"])
                 result = merge_component_values(
-                    "management-cluster", "prometheus", target
+                    mock_config, "management-cluster", "prometheus", target
                 )
 
             # Should have patch applied but no metadata in result
@@ -754,12 +825,21 @@ class TestValidation:
 
                 mock_path.side_effect = path_side_effect
 
+                # Create a mock config for the test
+                mock_config = MockConfig(
+                    {
+                        "dimensions": ["environments", "sectors", "regions"],
+                        "sequence": {"environments": []},
+                    },
+                    temp_dir,
+                )
+
                 # Capture print output
                 captured_output = io.StringIO()
                 with redirect_stdout(captured_output):
                     target = Target(["integration"])
                     result = merge_component_values(
-                        "management-cluster", "prometheus", target
+                        mock_config, "management-cluster", "prometheus", target
                     )
 
                 # Check that conflict was detected
@@ -843,7 +923,3 @@ cluster_types:
         # Should raise KeyError when trying to access sequence
         with pytest.raises(KeyError):
             MockConfig(config)
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])

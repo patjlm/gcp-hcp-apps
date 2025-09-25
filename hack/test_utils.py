@@ -400,7 +400,3 @@ class TestWalkDimensions:
             ("production", "prod-sector-1", "europe-east1"),
         ]
         assert paths == expected
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])

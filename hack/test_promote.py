@@ -1261,32 +1261,3 @@ def test_is_patched_function():
     dimension = ("integration", "different-sector")
     patched_dims = [("integration", "int-sector-1")]
     assert not is_patched(dimension, patched_dims)
-
-
-if __name__ == "__main__":
-    # Run tests with improved gap detection
-    test_gap_detection_no_gaps()
-    test_gap_detection_region_gap()
-    test_gap_detection_sector_gap()
-    test_gap_detection_environment_gap()
-
-    # Run coalescing tests
-    test_coalesce_patches_region_to_sector()
-    test_coalesce_patches_sector_to_environment()
-    test_coalesce_patches_mixed_levels()
-    test_coalesce_patches_incomplete_coverage()
-    test_coalesce_patches_already_at_higher_level()
-    test_coalesce_patches_cross_environment()
-    test_coalesce_patches_partial_cross_environment()
-    test_coalesce_patches_empty_input()
-    test_coalesce_patches_content_preservation()
-
-    # Run promote function test
-    test_promote_function()
-
-    # Run final consolidation tests
-    test_final_consolidation_to_values_yaml()
-    test_no_final_consolidation_with_partial_coverage()
-    test_merge_patch_into_values_function()
-
-    print("✅ All tests passed!")
