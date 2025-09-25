@@ -162,6 +162,34 @@ def promote(patches: list[Patch], cluster_type: str, application: str) -> None:
     shutil.copy2(patches[-1].path, next_patch)
 
 
+def merge_patch_into_values(patch: Patch, values_file: Path) -> None:
+    """Merge patch content into values.yaml, excluding metadata."""
+    # Load patch content and strip metadata
+    with open(patch.path) as f:
+        patch_data = yaml.safe_load(f)
+
+    if "metadata" in patch_data:
+        del patch_data["metadata"]
+
+    # Load existing values.yaml
+    with open(values_file) as f:
+        values_data = yaml.safe_load(f) or {}
+
+    # Deep merge patch into values
+    def deep_merge(base, update):
+        for key, value in update.items():
+            if key in base and isinstance(base[key], dict) and isinstance(value, dict):
+                deep_merge(base[key], value)
+            else:
+                base[key] = value
+
+    deep_merge(values_data, patch_data)
+
+    # Write merged content back
+    with open(values_file, 'w') as f:
+        yaml.dump(values_data, f, default_flow_style=False, sort_keys=False)
+
+
 def coalesce_patches(cluster_type: str, application: str, patch_name: str) -> None:
     """Coalesce patches that can be promoted together."""
     # Find all current patches
@@ -216,6 +244,20 @@ def coalesce_patches(cluster_type: str, application: str, patch_name: str) -> No
                 for patch in [p for p in patches if p.dimensions[: len(root)] == root]:
                     patch.path.unlink()
                     del patch_by_dimensions[patch.dimensions]
+
+    # Final consolidation: root-level patches → values.yaml
+    all_root_names = {root["name"] for root in config.sequence[config.dimensions[0]]}
+    root_patches = [p for p in patch_by_dimensions.values() if len(p.dimensions) == 1]
+    root_patch_names = {p.dimensions[0] for p in root_patches}
+
+    if root_patch_names == all_root_names:
+        print("  Final consolidation to values.yaml")
+        values_file = config.root / cluster_type / application / "values.yaml"
+        merge_patch_into_values(root_patches[0], values_file)
+
+        # Remove all root-level patches
+        for patch in root_patches:
+            patch.path.unlink()
 
 
 def main():

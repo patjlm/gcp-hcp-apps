@@ -1077,6 +1077,172 @@ def test_coalesce_patches_content_preservation():
             assert coalesced_content == region1_content
 
 
+def test_final_consolidation_to_values_yaml():
+    """Test final consolidation when all root dimensions have patches."""
+    config = create_real_test_config()
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        base_dir = Path(tmp_dir)
+
+        # Create patches at all root-level dimensions (all environments)
+        patches = ["integration", "stage", "production"]
+        create_test_filesystem(base_dir, patches)
+
+        # Create base values.yaml with existing content
+        app_dir = base_dir / "config" / "management-cluster" / "test-app"
+        values_file = app_dir / "values.yaml"
+        values_file.write_text("""
+applications:
+  test-app:
+    existing: config
+    source:
+      targetRevision: "v1.0.0"
+""")
+
+        # Create patch with metadata that should be stripped
+        patch_content = """
+metadata:
+  description: "Test patch for consolidation"
+
+applications:
+  test-app:
+    source:
+      targetRevision: "v2.0.0"
+    new_field: "added by patch"
+"""
+        (app_dir / "integration" / "patch-001.yaml").write_text(patch_content)
+
+        mock_config = promote.Config()
+        mock_config.config = config
+        mock_config.dimensions = config["dimensions"]
+        mock_config.sequence = config["sequence"]
+        mock_config.root = base_dir / "config"
+
+        with (
+            patch("promote.config", mock_config),
+            patch.object(Path, "cwd", return_value=base_dir),
+        ):
+            os.chdir(base_dir)
+            # Should consolidate to values.yaml
+            promote.coalesce_patches("management-cluster", "test-app", "patch-001")
+
+            # Verify values.yaml was updated
+            assert values_file.exists()
+            with open(values_file) as f:
+                merged_data = f.read()
+
+            # Check that patch content was merged
+            assert "v2.0.0" in merged_data
+            assert "added by patch" in merged_data
+            assert "existing: config" in merged_data
+
+            # Check that metadata was NOT included
+            assert "metadata" not in merged_data
+            assert "Test patch for consolidation" not in merged_data
+
+            # Verify root-level patches were removed
+            assert not (app_dir / "integration" / "patch-001.yaml").exists()
+            assert not (app_dir / "stage" / "patch-001.yaml").exists()
+            assert not (app_dir / "production" / "patch-001.yaml").exists()
+
+
+def test_no_final_consolidation_with_partial_coverage():
+    """Test that final consolidation doesn't happen with partial root coverage."""
+    config = create_real_test_config()
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        base_dir = Path(tmp_dir)
+
+        # Create patches at only some root dimensions (missing production)
+        patches = ["integration", "stage"]
+        create_test_filesystem(base_dir, patches)
+
+        # Create base values.yaml
+        app_dir = base_dir / "config" / "management-cluster" / "test-app"
+        values_file = app_dir / "values.yaml"
+        values_file.write_text("applications:\n  test-app:\n    existing: config")
+
+        mock_config = promote.Config()
+        mock_config.config = config
+        mock_config.dimensions = config["dimensions"]
+        mock_config.sequence = config["sequence"]
+        mock_config.root = base_dir / "config"
+
+        with (
+            patch("promote.config", mock_config),
+            patch.object(Path, "cwd", return_value=base_dir),
+        ):
+            os.chdir(base_dir)
+            # Should NOT consolidate (missing production)
+            promote.coalesce_patches("management-cluster", "test-app", "patch-001")
+
+            # Verify values.yaml was NOT modified
+            with open(values_file) as f:
+                content = f.read()
+            assert content == "applications:\n  test-app:\n    existing: config"
+
+            # Verify root-level patches still exist
+            assert (app_dir / "integration" / "patch-001.yaml").exists()
+            assert (app_dir / "stage" / "patch-001.yaml").exists()
+
+
+def test_merge_patch_into_values_function():
+    """Test the merge_patch_into_values function directly."""
+    config = create_real_test_config()
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        base_dir = Path(tmp_dir)
+
+        # Create patch with metadata
+        patch_content = """
+metadata:
+  description: "Test patch"
+  owner: "team@example.com"
+
+applications:
+  test-app:
+    source:
+      targetRevision: "v2.0.0"
+    new_config:
+      enabled: true
+"""
+        app_dir = base_dir / "config" / "management-cluster" / "test-app"
+        app_dir.mkdir(parents=True, exist_ok=True)
+        patch_file = app_dir / "integration" / "patch-001.yaml"
+        patch_file.parent.mkdir(parents=True, exist_ok=True)
+        patch_file.write_text(patch_content)
+
+        # Create existing values.yaml
+        values_file = app_dir / "values.yaml"
+        values_file.write_text("""
+applications:
+  test-app:
+    existing: config
+    source:
+      targetRevision: "v1.0.0"
+      chart: test-chart
+""")
+
+        # Create patch object
+        patch_obj = promote.Patch("management-cluster", "test-app", ("integration",), "patch-001", patch_file)
+
+        # Test the merge function
+        promote.merge_patch_into_values(patch_obj, values_file)
+
+        # Verify merged content
+        import yaml
+        with open(values_file) as f:
+            merged_data = yaml.safe_load(f)
+
+        assert merged_data["applications"]["test-app"]["existing"] == "config"
+        assert merged_data["applications"]["test-app"]["source"]["targetRevision"] == "v2.0.0"
+        assert merged_data["applications"]["test-app"]["source"]["chart"] == "test-chart"
+        assert merged_data["applications"]["test-app"]["new_config"]["enabled"] is True
+
+        # Verify metadata was stripped
+        assert "metadata" not in merged_data
+
+
 def test_promote_function():
     """Test the full promote function workflow."""
     config = create_real_test_config()
@@ -1141,5 +1307,10 @@ if __name__ == "__main__":
 
     # Run promote function test
     test_promote_function()
+
+    # Run final consolidation tests
+    test_final_consolidation_to_values_yaml()
+    test_no_final_consolidation_with_partial_coverage()
+    test_merge_patch_into_values_function()
 
     print("✅ All tests passed!")
