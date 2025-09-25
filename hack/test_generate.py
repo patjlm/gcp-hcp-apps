@@ -19,7 +19,6 @@ import yaml
 sys.path.append(str(Path(__file__).parent))
 from generate import (
     Target,
-    deep_merge,
     discover_targets,
     find_components,
     merge_component_values,
@@ -32,6 +31,7 @@ class TestTargetDiscovery:
     def test_discover_targets_simple(self):
         """Test basic target discovery."""
         config = {
+            "dimensions": ["environments", "sectors", "regions"],
             "sequence": {
                 "environments": [
                     {
@@ -47,7 +47,7 @@ class TestTargetDiscovery:
                         ],
                     }
                 ]
-            }
+            },
         }
 
         targets = discover_targets(config)
@@ -59,6 +59,7 @@ class TestTargetDiscovery:
     def test_discover_targets_multi_environment(self):
         """Test discovery with multiple environments."""
         config = {
+            "dimensions": ["environments", "sectors", "regions"],
             "sequence": {
                 "environments": [
                     {
@@ -77,7 +78,7 @@ class TestTargetDiscovery:
                         ],
                     },
                 ]
-            }
+            },
         }
 
         targets = discover_targets(config)
@@ -85,40 +86,6 @@ class TestTargetDiscovery:
         assert len(targets) == 2
         assert Target(["integration", "int-sector-1", "us-central1"]) in targets
         assert Target(["production", "prod-sector-1", "us-east1"]) in targets
-
-
-class TestValueMerging:
-    """Test value merging logic."""
-
-    def test_deep_merge_simple(self):
-        """Test simple deep merge."""
-        base = {"a": 1, "b": {"c": 2}}
-        override = {"b": {"d": 3}, "e": 4}
-
-        result = deep_merge(base, override)
-
-        expected = {"a": 1, "b": {"c": 2, "d": 3}, "e": 4}
-        assert result == expected
-
-    def test_deep_merge_override(self):
-        """Test deep merge with override."""
-        base = {"a": 1, "b": {"c": 2}}
-        override = {"a": 10, "b": {"c": 20}}
-
-        result = deep_merge(base, override)
-
-        expected = {"a": 10, "b": {"c": 20}}
-        assert result == expected
-
-    def test_deep_merge_lists(self):
-        """Test deep merge with lists (should replace)."""
-        base = {"items": [1, 2, 3]}
-        override = {"items": [4, 5]}
-
-        result = deep_merge(base, override)
-
-        expected = {"items": [4, 5]}
-        assert result == expected
 
 
 class TestApplicationDiscovery:
@@ -236,6 +203,7 @@ class TestIntegration:
         """Test target discovery with realistic config structure."""
         # Use mock config instead of reading from actual config files
         config = {
+            "dimensions": ["environments", "sectors", "regions"],
             "sequence": {
                 "environments": [
                     {
@@ -263,7 +231,7 @@ class TestIntegration:
                         ],
                     },
                 ]
-            }
+            },
         }
 
         targets = discover_targets(config)
@@ -823,7 +791,7 @@ class TestValidation:
 
     def test_empty_config_sequence_returns_empty_targets(self):
         """Test that empty sequence returns no targets."""
-        config = {"sequence": {}}
+        config = {"dimensions": ["environments", "sectors", "regions"], "sequence": {}}
         targets = discover_targets(config)
         assert targets == []
 

@@ -18,18 +18,14 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
-import yaml
+from utils import deep_merge, load_config, load_yaml, save_yaml, walk_dimensions
 
 
 class Config:
     def __init__(self, root: Path | None = None):
         self.root = Path(__file__).parent.parent / "config" if root is None else root
         config_yaml = self.root / "config.yaml"
-        if not config_yaml.exists():
-            print(f"ERROR: config.yaml not found at {config_yaml}")
-            sys.exit(1)
-        with open(config_yaml) as f:
-            self.config = yaml.safe_load(f)
+        self.config = load_config(config_yaml)
         self.dimensions = tuple(self.config["dimensions"])
         self.sequence = self.config["sequence"]
 
@@ -53,27 +49,11 @@ DEFAULT_PROMOTION_LEVEL_NUMBER = (
 )  # sectors = index 1 + 1 = 2
 
 
-def walk(
-    partial_sequence: dict,
-    partial_dimensions: tuple[str, ...],
-    ancestors: tuple[str, ...],
-) -> Iterator[tuple[str, ...]]:
-    """Walk the sequence and yield each found dimension node (with ancestors)"""
-    current_dimension = partial_dimensions[0]
-    next_dimensions = partial_dimensions[1:]
-
-    for d in partial_sequence[current_dimension]:
-        yield ancestors + (d["name"],)
-        next_dimension = next_dimensions[0] if next_dimensions else None
-        if next_dimension:
-            yield from walk(d, next_dimensions, ancestors + (d["name"],))
-
-
 def find_patches(cluster_type: str, app: str, patch_name: str) -> Iterator[Patch]:
     """Find all patches in sequence order."""
     app_dir = config.root / cluster_type / app
 
-    for path_parts in walk(config.sequence, config.dimensions, ()):
+    for path_parts in walk_dimensions(config.sequence, config.dimensions):
         patch = Patch(
             cluster_type=cluster_type,
             application=app,
@@ -102,7 +82,7 @@ def detect_gaps(patches: list[Patch]) -> None:
     latest_patch = patches[-1]
 
     patched_dimensions = [p.dimensions for p in patches]
-    all_dimensions = list(walk(config.sequence, config.dimensions, ()))
+    all_dimensions = list(walk_dimensions(config.sequence, config.dimensions))
 
     for dimension in all_dimensions:
         if dimension == latest_patch.dimensions:
@@ -121,7 +101,7 @@ def get_next_location(patches: list[Patch], cluster_type: str, app: str) -> Path
     patched_dimensions = [p.dimensions for p in patches]
     current_patch_dimension_reached = False
 
-    for dimension in walk(config.sequence, config.dimensions, ()):
+    for dimension in walk_dimensions(config.sequence, config.dimensions):
         if dimension == current_patch.dimensions:
             current_patch_dimension_reached = True
             continue
@@ -165,29 +145,19 @@ def promote(patches: list[Patch], cluster_type: str, application: str) -> None:
 def merge_patch_into_values(patch: Patch, values_file: Path) -> None:
     """Merge patch content into values.yaml, excluding metadata."""
     # Load patch content and strip metadata
-    with open(patch.path) as f:
-        patch_data = yaml.safe_load(f)
+    patch_data = load_yaml(patch.path)
 
     if "metadata" in patch_data:
         del patch_data["metadata"]
 
     # Load existing values.yaml
-    with open(values_file) as f:
-        values_data = yaml.safe_load(f) or {}
+    values_data = load_yaml(values_file) or {}
 
     # Deep merge patch into values
-    def deep_merge(base, update):
-        for key, value in update.items():
-            if key in base and isinstance(base[key], dict) and isinstance(value, dict):
-                deep_merge(base[key], value)
-            else:
-                base[key] = value
-
-    deep_merge(values_data, patch_data)
+    values_data = deep_merge(values_data, patch_data)
 
     # Write merged content back
-    with open(values_file, 'w') as f:
-        yaml.dump(values_data, f, default_flow_style=False, sort_keys=False)
+    save_yaml(values_data, values_file)
 
 
 def coalesce_patches(cluster_type: str, application: str, patch_name: str) -> None:
@@ -198,7 +168,7 @@ def coalesce_patches(cluster_type: str, application: str, patch_name: str) -> No
         return
 
     # Get all possible dimensions
-    all_dimensions = list(walk(config.sequence, config.dimensions, ()))
+    all_dimensions = list(walk_dimensions(config.sequence, config.dimensions))
 
     patch_by_dimensions = {p.dimensions: p for p in patches}
 
@@ -268,9 +238,7 @@ def main():
 
     args = parser.parse_args()
 
-    patches = list(
-        find_patches(args.cluster_type, args.application, args.patch_name)
-    )
+    patches = list(find_patches(args.cluster_type, args.application, args.patch_name))
     if not patches:
         print(f"ERROR: No patches found for {args.application}")
         sys.exit(1)

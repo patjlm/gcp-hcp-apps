@@ -14,9 +14,10 @@ import subprocess
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 import yaml
+from utils import deep_merge, load_config, load_yaml, save_yaml, walk_dimensions
 
 
 @dataclass
@@ -29,33 +30,6 @@ class Target:
     def path(self) -> str:
         """Get the file system path for this target."""
         return "/".join(self.path_parts)
-
-
-def load_yaml(file_path: Path) -> Dict[str, Any]:
-    """Load YAML file."""
-    with open(file_path, "r") as f:
-        return yaml.safe_load(f)
-
-
-def save_yaml(data: Dict[str, Any], file_path: Path) -> None:
-    """Save data to YAML file."""
-    file_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(file_path, "w") as f:
-        yaml.dump(data, f, default_flow_style=False, sort_keys=False, width=1000)
-
-
-def deep_merge(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
-    """Simple deep merge of dictionaries."""
-    if not isinstance(override, dict):
-        return override
-
-    result = base.copy()
-    for key, value in override.items():
-        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
-            result[key] = deep_merge(result[key], value)
-        else:
-            result[key] = value
-    return result
 
 
 def get_patch_paths(patch_data: Dict[str, Any]) -> List[str]:
@@ -80,58 +54,16 @@ def discover_targets(config: Dict[str, Any]) -> List[Target]:
     Traverses the dimensional structure defined in config.yaml to generate
     all possible environment/sector/region (or other) combinations as deployment targets.
     """
+    dimensions = tuple(config["dimensions"])
+    sequence = config["sequence"]
 
-    # Keys that represent metadata, not child dimensions
-    METADATA_KEYS = ["name", "promotion"]
+    targets = []
+    for path_parts in walk_dimensions(sequence, dimensions):
+        # Only keep complete leaf paths (full dimensional depth)
+        if len(path_parts) == len(dimensions):
+            targets.append(Target(list(path_parts)))
 
-    def traverse_dimensions(
-        sequence_data: Any, current_path: Optional[List[str]] = None
-    ) -> List[Target]:
-        """Recursively traverse dimensional hierarchy to find all leaf combinations.
-
-        Args:
-            sequence_data: Current level of the dimensional hierarchy
-            current_path: Path built so far (e.g., ["production", "prod-sector-1"])
-
-        Returns:
-            List of Target objects representing all possible dimensional combinations
-        """
-        if current_path is None:
-            current_path = []
-        targets: List[Target] = []
-
-        if isinstance(sequence_data, list):
-            # Process each item in the current dimension list
-            for dimension_item in sequence_data:
-                if isinstance(dimension_item, dict) and "name" in dimension_item:
-                    item_name = dimension_item["name"]
-                    new_path = current_path + [item_name]
-
-                    # Find child dimensions (exclude metadata keys like 'name', 'promotion')
-                    dimension_keys = [
-                        k for k in dimension_item.keys() if k not in METADATA_KEYS
-                    ]
-
-                    if dimension_keys:
-                        # Has child dimensions - recurse deeper into hierarchy
-                        for dimension_name in dimension_keys:
-                            targets.extend(
-                                traverse_dimensions(
-                                    dimension_item[dimension_name], new_path
-                                )
-                            )
-                    else:
-                        # Leaf node reached - create final deployment target
-                        targets.append(Target(new_path))
-
-        elif isinstance(sequence_data, dict):
-            # Dictionary container - recurse into all dimension values
-            for dimension_values in sequence_data.values():
-                targets.extend(traverse_dimensions(dimension_values, current_path))
-
-        return targets
-
-    return traverse_dimensions(config["sequence"])
+    return targets
 
 
 def find_components(cluster_type: str) -> List[str]:
@@ -334,7 +266,7 @@ def main() -> None:
     print(f"Working directory: {repo_root}")
 
     # Load global config
-    config = load_yaml(Path("config/config.yaml"))
+    config = load_config()
     if not config:
         raise ValueError("Global config file config/config.yaml is empty or invalid")
 

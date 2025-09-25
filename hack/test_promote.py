@@ -205,7 +205,9 @@ def test_walk_function():
     config = create_test_config()
 
     # Test all possible walk paths
-    all_paths = list(promote.walk(config["sequence"], tuple(config["dimensions"]), ()))
+    all_paths = list(
+        promote.walk_dimensions(config["sequence"], tuple(config["dimensions"]))
+    )
 
     expected_paths = [
         ("env1",),
@@ -1188,7 +1190,6 @@ def test_no_final_consolidation_with_partial_coverage():
 
 def test_merge_patch_into_values_function():
     """Test the merge_patch_into_values function directly."""
-    config = create_real_test_config()
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         base_dir = Path(tmp_dir)
@@ -1224,19 +1225,27 @@ applications:
 """)
 
         # Create patch object
-        patch_obj = promote.Patch("management-cluster", "test-app", ("integration",), "patch-001", patch_file)
+        patch_obj = promote.Patch(
+            "management-cluster", "test-app", ("integration",), "patch-001", patch_file
+        )
 
         # Test the merge function
         promote.merge_patch_into_values(patch_obj, values_file)
 
         # Verify merged content
         import yaml
+
         with open(values_file) as f:
             merged_data = yaml.safe_load(f)
 
         assert merged_data["applications"]["test-app"]["existing"] == "config"
-        assert merged_data["applications"]["test-app"]["source"]["targetRevision"] == "v2.0.0"
-        assert merged_data["applications"]["test-app"]["source"]["chart"] == "test-chart"
+        assert (
+            merged_data["applications"]["test-app"]["source"]["targetRevision"]
+            == "v2.0.0"
+        )
+        assert (
+            merged_data["applications"]["test-app"]["source"]["chart"] == "test-chart"
+        )
         assert merged_data["applications"]["test-app"]["new_config"]["enabled"] is True
 
         # Verify metadata was stripped
