@@ -82,7 +82,7 @@ class Config:
         self.sequence = self.config["sequence"]
         self.cluster_types = self.config["cluster_types"]
 
-    def path(self, cluster_type: str, application: str = None) -> Path:
+    def path(self, cluster_type: str, application: str|None = None) -> Path:
         if application is None:
             return self.root / cluster_type
         return self.root / cluster_type / application

@@ -28,3 +28,5 @@ env/
 .DS_Store
 Thumbs.db
 hack/pyproject.toml
+
+.serena/

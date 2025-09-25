@@ -29,7 +29,22 @@ class Patch:
     application: str
     dimensions: tuple[str, ...]
     name: str
-    path: Path
+
+    @property
+    def path(self) -> Path:
+        return (
+            config.path(self.cluster_type, self.application)
+            / Path(*self.dimensions)
+            / f"{self.name}.yaml"
+        )
+
+    def duplicate(self, dimensions: tuple[str, ...]) -> "Patch":
+        return Patch(
+            cluster_type=self.cluster_type,
+            application=self.application,
+            dimensions=dimensions,
+            name=self.name,
+        )
 
 
 # Default level to promote to when moving between top-level dimensions
@@ -41,15 +56,12 @@ DEFAULT_PROMOTION_LEVEL_NUMBER = (
 
 def find_patches(cluster_type: str, app: str, patch_name: str) -> Iterator[Patch]:
     """Find all patches in sequence order."""
-    app_dir = config.path(cluster_type, app)
-
     for path_parts in walk_dimensions(config.sequence, config.dimensions):
         patch = Patch(
             cluster_type=cluster_type,
             application=app,
             dimensions=path_parts,
             name=patch_name,
-            path=app_dir / Path(*path_parts) / f"{patch_name}.yaml",
         )
         if patch.path.exists():
             yield patch
@@ -104,11 +116,8 @@ def get_next_location(patches: list[Patch], cluster_type: str, app: str) -> Path
         if len(dimension) < DEFAULT_PROMOTION_LEVEL_NUMBER:
             continue  # Do not promote to full environments
 
-        return (
-            config.path(cluster_type, app)
-            / Path(*dimension)
-            / f"{current_patch.name}.yaml"
-        )
+        next_patch = current_patch.duplicate(dimension)
+        return next_patch.path
 
     print("No promotion target found")
     sys.exit(1)
@@ -118,12 +127,11 @@ def promote(patches: list[Patch], cluster_type: str, application: str) -> None:
     """Promote patches to the next location and perform coalescing."""
     # Get next location
     next_patch = get_next_location(patches, cluster_type, application)
-    print(f"Promoting to: {next_patch}")
 
     # Check if target exists
     if next_patch.exists():
-        print(f"ERROR: Target already exists: {next_patch}")
-        sys.exit(1)
+        raise FileExistsError(f"ERROR: Target already exists: {next_patch}")
+    print(f"Promoting to: {next_patch}")
 
     # Copy the patch
     next_patch.parent.mkdir(parents=True, exist_ok=True)
@@ -148,6 +156,26 @@ def merge_patch_into_values(patch: Patch, values_file: Path) -> None:
     save_yaml(values_data, values_file)
 
 
+def _perform_coalescing(
+    root: tuple[str, ...],
+    patches_to_remove: list[Patch],
+    patch_by_dimensions: dict[tuple[str, ...], Patch],
+) -> None:
+    """Perform the actual coalescing: create new patch and remove old ones."""
+    source_patch = patches_to_remove[0]
+
+    # Create new patch in root
+    new_patch = source_patch.duplicate(root)
+
+    shutil.copy2(source_patch.path, new_patch.path)
+    patch_by_dimensions[root] = new_patch
+
+    # Remove old patches in children dimensions
+    for patch in patches_to_remove:
+        patch.path.unlink()
+        del patch_by_dimensions[patch.dimensions]
+
+
 def coalesce_patches(cluster_type: str, application: str, patch_name: str) -> None:
     """Coalesce patches that can be promoted together."""
     # Find all current patches
@@ -167,34 +195,16 @@ def coalesce_patches(cluster_type: str, application: str, patch_name: str) -> No
                 root_dimensions.setdefault(d[:idx], []).append(d)
 
         for root, dims in root_dimensions.items():
-            # continue if a higher level is patched
-            if is_patched(root, patch_by_dimensions.keys()):
+            # continue if this level or a higher level is already patched
+            if is_patched(root, list(patch_by_dimensions)):
                 continue
 
-            if root in patch_by_dimensions:
-                # already patched at this level
-                print(f"MIGHT NOT BE NEEDED WITH THE TEST ABOVE: {root}")
-                continue
-
-            if all(is_patched(dim, patch_by_dimensions.keys()) for dim in dims):
+            if all(is_patched(dim, list(patch_by_dimensions)) for dim in dims):
                 # we can coalesce all matching patches into root
-                new_patch = Patch(
-                    cluster_type,
-                    application,
-                    root,
-                    patch_name,
-                    config.path(cluster_type, application)
-                    / Path(*root)
-                    / f"{patch_name}.yaml",
-                )
-                # create new patch in root - use any existing patch for content
-                source_patch = list(patch_by_dimensions.values())[0]
-                shutil.copy2(source_patch.path, new_patch.path)
-                patch_by_dimensions[root] = new_patch
-                # remove old patches in children dimensions
-                for patch in [p for p in patches if p.dimensions[: len(root)] == root]:
-                    patch.path.unlink()
-                    del patch_by_dimensions[patch.dimensions]
+                patches_to_remove = [
+                    p for p in patches if p.dimensions[: len(root)] == root
+                ]
+                _perform_coalescing(root, patches_to_remove, patch_by_dimensions)
 
     # Final consolidation: root-level patches → values.yaml
     all_root_names = {root["name"] for root in config.sequence[config.dimensions[0]]}

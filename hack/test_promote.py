@@ -1123,7 +1123,7 @@ applications:
     new_config:
       enabled: true
 """
-        app_dir = base_dir / "config" / "management-cluster" / "test-app"
+        app_dir = base_dir / "management-cluster" / "test-app"
         app_dir.mkdir(parents=True, exist_ok=True)
         patch_file = app_dir / "integration" / "patch-001.yaml"
         patch_file.parent.mkdir(parents=True, exist_ok=True)
@@ -1140,32 +1140,56 @@ applications:
       chart: test-chart
 """)
 
-        # Create patch object
-        patch_obj = promote.Patch(
-            "management-cluster", "test-app", ("integration",), "patch-001", patch_file
-        )
+        # Create a mock config that points to our temp directory
+        original_config = promote.config
+        mock_config_data = {
+            "dimensions": ["environments", "sectors", "regions"],
+            "sequence": {
+                "environments": [
+                    {
+                        "name": "integration",
+                        "sectors": [
+                            {"name": "int-sector-1", "regions": ["us-central1"]}
+                        ],
+                    }
+                ]
+            },
+        }
+        promote.config = MockConfig(mock_config_data, base_dir)
 
-        # Test the merge function
-        promote.merge_patch_into_values(patch_obj, values_file)
+        try:
+            # Create patch object - no need to pass path, it's computed
+            patch_obj = promote.Patch(
+                "management-cluster", "test-app", ("integration",), "patch-001"
+            )
 
-        # Verify merged content
-        import yaml
+            # Test the merge function
+            promote.merge_patch_into_values(patch_obj, values_file)
 
-        with open(values_file) as f:
-            merged_data = yaml.safe_load(f)
+            # Verify merged content
+            import yaml
 
-        assert merged_data["applications"]["test-app"]["existing"] == "config"
-        assert (
-            merged_data["applications"]["test-app"]["source"]["targetRevision"]
-            == "v2.0.0"
-        )
-        assert (
-            merged_data["applications"]["test-app"]["source"]["chart"] == "test-chart"
-        )
-        assert merged_data["applications"]["test-app"]["new_config"]["enabled"] is True
+            with open(values_file) as f:
+                merged_data = yaml.safe_load(f)
 
-        # Verify metadata was stripped
-        assert "metadata" not in merged_data
+            assert merged_data["applications"]["test-app"]["existing"] == "config"
+            assert (
+                merged_data["applications"]["test-app"]["source"]["targetRevision"]
+                == "v2.0.0"
+            )
+            assert (
+                merged_data["applications"]["test-app"]["source"]["chart"]
+                == "test-chart"
+            )
+            assert (
+                merged_data["applications"]["test-app"]["new_config"]["enabled"] is True
+            )
+
+            # Verify metadata was stripped
+            assert "metadata" not in merged_data
+        finally:
+            # Restore original config
+            promote.config = original_config
 
 
 def test_promote_function():
@@ -1206,6 +1230,51 @@ def test_promote_function():
                 / "config/management-cluster/test-app/integration/int-sector-1/us-central1/patch-001.yaml"
             )
             assert original_patch.exists()
+
+
+def test_is_patched_function():
+    """Test the is_patched function behavior."""
+    from promote import is_patched
+
+    # Test exact match
+    dimension = ("integration", "int-sector-1")
+    patched_dims = [("integration", "int-sector-1")]
+    assert is_patched(dimension, patched_dims)
+
+    # Test ancestor match (patch at higher level covers lower level)
+    dimension = ("integration", "int-sector-1", "us-central1")
+    patched_dims = [("integration", "int-sector-1")]
+    assert is_patched(dimension, patched_dims)
+
+    # Test no match (different branches)
+    dimension = ("integration", "int-sector-1")
+    patched_dims = [("integration", "int-sector-2")]
+    assert not is_patched(dimension, patched_dims)
+
+    # Test empty list
+    dimension = ("integration", "int-sector-1")
+    patched_dims = []
+    assert not is_patched(dimension, patched_dims)
+
+    # Test multiple patches (should find match in list)
+    dimension = ("integration", "int-sector-1", "us-central1")
+    patched_dims = [("stage",), ("integration", "int-sector-1")]
+    assert is_patched(dimension, patched_dims)
+
+    # Test dimension shorter than patch (should NOT match)
+    dimension = ("integration",)
+    patched_dims = [("integration", "int-sector-1", "us-central1")]
+    assert not is_patched(dimension, patched_dims)
+
+    # Test root level dimension
+    dimension = ("integration",)
+    patched_dims = [("integration",)]
+    assert is_patched(dimension, patched_dims)
+
+    # Test partial prefix match (should NOT match)
+    dimension = ("integration", "different-sector")
+    patched_dims = [("integration", "int-sector-1")]
+    assert not is_patched(dimension, patched_dims)
 
 
 if __name__ == "__main__":
