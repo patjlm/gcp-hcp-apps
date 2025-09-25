@@ -97,7 +97,7 @@ def detect_gaps(patches: list[Patch]) -> None:
             )
 
 
-def get_next_location(patches: list[Patch], cluster_type: str, app: str) -> Path:
+def get_next_location(patches: list[Patch]) -> Path | None:
     """Get the next location to promote the patch to."""
     current_patch = patches[-1]
     patched_dimensions = [p.dimensions for p in patches]
@@ -120,20 +120,20 @@ def get_next_location(patches: list[Patch], cluster_type: str, app: str) -> Path
         return next_patch.path
 
     print("No promotion target found")
-    sys.exit(1)
+    return None
 
 
-def promote(patches: list[Patch], cluster_type: str, application: str) -> None:
+def promote(patches: list[Patch]) -> None:
     """Promote patches to the next location and perform coalescing."""
     # Get next location
-    next_patch = get_next_location(patches, cluster_type, application)
+    next_patch = get_next_location(patches)
+    if next_patch is None:
+        return
 
-    # Check if target exists
     if next_patch.exists():
         raise FileExistsError(f"ERROR: Target already exists: {next_patch}")
     print(f"Promoting to: {next_patch}")
 
-    # Copy the patch
     next_patch.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(patches[-1].path, next_patch)
 
@@ -147,7 +147,7 @@ def merge_patch_into_values(patch: Patch, values_file: Path) -> None:
         del patch_data["metadata"]
 
     # Load existing values.yaml
-    values_data = load_yaml(values_file) or {}
+    values_data = load_yaml(values_file, check_empty=True)
 
     # Deep merge patch into values
     values_data = deep_merge(values_data, patch_data)
@@ -237,7 +237,7 @@ def main():
     detect_gaps(patches)
 
     # Promote the patch if possible
-    promote(patches, args.cluster_type, args.application)
+    promote(patches)
 
     # Coalesce patches if possible
     coalesce_patches(args.cluster_type, args.application, args.patch_name)
@@ -245,7 +245,7 @@ def main():
     print("✓ Promoted successfully")
     print("\nNext steps:")
     print("  make generate")
-    print("  git add config/")
+    print("  git add config/ rendered/")
     print(f"  git commit -m 'Promote {args.patch_name} for {args.application}'")
 
 

@@ -381,9 +381,7 @@ def test_valid_region_to_region_promotion():
             promote.detect_gaps(all_patches)
 
             # Should promote to next region
-            next_location = promote.get_next_location(
-                all_patches, "management-cluster", "test-app"
-            )
+            next_location = promote.get_next_location(all_patches)
             expected = (
                 base_dir
                 / "config/management-cluster/test-app/integration/int-sector-1/europe-west1/patch-001.yaml"
@@ -420,9 +418,7 @@ def test_valid_region_to_sector_promotion():
             promote.detect_gaps(all_patches)
 
             # Should promote to next sector (respecting DEFAULT_PROMOTION_LEVEL)
-            next_location = promote.get_next_location(
-                all_patches, "management-cluster", "test-app"
-            )
+            next_location = promote.get_next_location(all_patches)
             expected = (
                 base_dir
                 / "config/management-cluster/test-app/integration/int-sector-2/patch-001.yaml"
@@ -456,9 +452,7 @@ def test_valid_sector_to_sector_promotion():
             promote.detect_gaps(all_patches)
 
             # Should promote to next sector
-            next_location = promote.get_next_location(
-                all_patches, "management-cluster", "test-app"
-            )
+            next_location = promote.get_next_location(all_patches)
             expected = (
                 base_dir
                 / "config/management-cluster/test-app/integration/int-sector-2/patch-001.yaml"
@@ -492,9 +486,7 @@ def test_valid_environment_to_environment_promotion():
             promote.detect_gaps(all_patches)
 
             # Should promote to next environment at default level (sector)
-            next_location = promote.get_next_location(
-                all_patches, "management-cluster", "test-app"
-            )
+            next_location = promote.get_next_location(all_patches)
             expected = (
                 base_dir
                 / "config/management-cluster/test-app/stage/stage-sector-1/patch-001.yaml"
@@ -558,9 +550,9 @@ def test_end_of_sequence():
             # Should not raise any errors (no gaps)
             promote.detect_gaps(all_patches)
 
-            # Should exit with error for end of sequence
-            with pytest.raises(SystemExit):
-                promote.get_next_location(all_patches, "management-cluster", "test-app")
+            # Should return None for end of sequence
+            next_location = promote.get_next_location(all_patches)
+            assert next_location is None
 
 
 def test_complete_promotion_flow():
@@ -584,9 +576,7 @@ def test_complete_promotion_flow():
             all_patches = list(
                 promote.find_patches("management-cluster", "test-app", "patch-001")
             )
-            next_location = promote.get_next_location(
-                all_patches, "management-cluster", "test-app"
-            )
+            next_location = promote.get_next_location(all_patches)
             expected = (
                 base_dir
                 / "config/management-cluster/test-app/integration/int-sector-1/europe-west1/patch-001.yaml"
@@ -599,9 +589,7 @@ def test_complete_promotion_flow():
             all_patches = list(
                 promote.find_patches("management-cluster", "test-app", "patch-001")
             )
-            next_location = promote.get_next_location(
-                all_patches, "management-cluster", "test-app"
-            )
+            next_location = promote.get_next_location(all_patches)
             expected = (
                 base_dir
                 / "config/management-cluster/test-app/integration/int-sector-2/patch-001.yaml"
@@ -614,9 +602,7 @@ def test_complete_promotion_flow():
             all_patches = list(
                 promote.find_patches("management-cluster", "test-app", "patch-001")
             )
-            next_location = promote.get_next_location(
-                all_patches, "management-cluster", "test-app"
-            )
+            next_location = promote.get_next_location(all_patches)
             expected = (
                 base_dir
                 / "config/management-cluster/test-app/stage/stage-sector-1/patch-001.yaml"
@@ -1215,7 +1201,7 @@ def test_promote_function():
             )
 
             # Should promote to next region
-            promote.promote(all_patches, "management-cluster", "test-app")
+            promote.promote(all_patches)
 
             # Verify new patch was created
             next_patch = (
