@@ -30,7 +30,7 @@ class Config:
             sys.exit(1)
         with open(config_yaml) as f:
             self.config = yaml.safe_load(f)
-        self.dimensions = self.config["dimensions"]
+        self.dimensions = tuple(self.config["dimensions"])
         self.sequence = self.config["sequence"]
 
 
@@ -41,7 +41,7 @@ config = Config()
 class Patch:
     cluster_type: str
     application: str
-    dimensions: list[str]
+    dimensions: tuple[str, ...]
     name: str
     path: Path
 
@@ -54,24 +54,26 @@ DEFAULT_PROMOTION_LEVEL_NUMBER = (
 
 
 def walk(
-    partial_sequence: dict, partial_dimensions: list[str], ancestors: list[str]
-) -> Iterator[list[str]]:
+    partial_sequence: dict,
+    partial_dimensions: tuple[str, ...],
+    ancestors: tuple[str, ...],
+) -> Iterator[tuple[str, ...]]:
     """Walk the sequence and yield each found dimension node (with ancestors)"""
     current_dimension = partial_dimensions[0]
     next_dimensions = partial_dimensions[1:]
 
     for d in partial_sequence[current_dimension]:
-        yield ancestors + [d["name"]]
+        yield ancestors + (d["name"],)
         next_dimension = next_dimensions[0] if next_dimensions else None
         if next_dimension:
-            yield from walk(d, next_dimensions, ancestors + [d["name"]])
+            yield from walk(d, next_dimensions, ancestors + (d["name"],))
 
 
-def find_all_patches(cluster_type: str, app: str, patch_name: str) -> Iterator[Patch]:
+def find_patches(cluster_type: str, app: str, patch_name: str) -> Iterator[Patch]:
     """Find all patches in sequence order."""
     app_dir = config.root / cluster_type / app
 
-    for path_parts in walk(config.sequence, config.dimensions, []):
+    for path_parts in walk(config.sequence, config.dimensions, ()):
         patch = Patch(
             cluster_type=cluster_type,
             application=app,
@@ -83,7 +85,9 @@ def find_all_patches(cluster_type: str, app: str, patch_name: str) -> Iterator[P
             yield patch
 
 
-def is_patched(dimension: list[str], patched_dimensions: list[list[str]]) -> bool:
+def is_patched(
+    dimension: tuple[str, ...], patched_dimensions: list[tuple[str, ...]]
+) -> bool:
     """Check if a given dimension path is already patched."""
     for patched_dimension in patched_dimensions:
         if dimension[: len(patched_dimension)] == patched_dimension:
@@ -98,7 +102,7 @@ def detect_gaps(patches: list[Patch]) -> None:
     latest_patch = patches[-1]
 
     patched_dimensions = [p.dimensions for p in patches]
-    all_dimensions = list(walk(config.sequence, config.dimensions, []))
+    all_dimensions = list(walk(config.sequence, config.dimensions, ()))
 
     for dimension in all_dimensions:
         if dimension == latest_patch.dimensions:
@@ -117,7 +121,7 @@ def get_next_location(patches: list[Patch], cluster_type: str, app: str) -> Path
     patched_dimensions = [p.dimensions for p in patches]
     current_patch_dimension_reached = False
 
-    for dimension in walk(config.sequence, config.dimensions, []):
+    for dimension in walk(config.sequence, config.dimensions, ()):
         if dimension == current_patch.dimensions:
             current_patch_dimension_reached = True
             continue
@@ -142,26 +146,10 @@ def get_next_location(patches: list[Patch], cluster_type: str, app: str) -> Path
     sys.exit(1)
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Promote patches through the fleet")
-    parser.add_argument("cluster_type", help="e.g. management-cluster")
-    parser.add_argument("application", help="e.g. hypershift")
-    parser.add_argument("patch_name", help="e.g. patch-001")
-
-    args = parser.parse_args()
-
-    patches = list(
-        find_all_patches(args.cluster_type, args.application, args.patch_name)
-    )
-    if not patches:
-        print(f"ERROR: No patches found for {args.application}")
-        sys.exit(1)
-
-    # Check for gaps first
-    detect_gaps(patches)
-
+def promote(patches: list[Patch], cluster_type: str, application: str) -> None:
+    """Promote patches to the next location and perform coalescing."""
     # Get next location
-    next_patch = get_next_location(patches, args.cluster_type, args.application)
+    next_patch = get_next_location(patches, cluster_type, application)
     print(f"Promoting to: {next_patch}")
 
     # Check if target exists
@@ -172,6 +160,87 @@ def main():
     # Copy the patch
     next_patch.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(patches[-1].path, next_patch)
+
+
+def coalesce_patches(cluster_type: str, application: str, patch_name: str) -> None:
+    """Coalesce patches that can be promoted together."""
+    # Find all current patches
+    patches = list(find_patches(cluster_type, application, patch_name))
+    if not patches:
+        return
+
+    # Get all possible dimensions
+    all_dimensions = list(walk(config.sequence, config.dimensions, ()))
+
+    patch_by_dimensions = {p.dimensions: p for p in patches}
+
+    print("Coalescing patches")
+
+    for idx in range(1, len(config.dimensions)):
+        root_dimensions: dict[tuple[str, ...], list[tuple[str, ...]]] = {}
+        for d in all_dimensions:
+            if len(d) == len(config.dimensions):
+                root_dimensions.setdefault(d[:idx], []).append(d)
+
+        for root, dims in root_dimensions.items():
+            # continue if a higher level is patched
+            if is_patched(root, patch_by_dimensions.keys()):
+                print(f"  DEBUG: skipping {root} as it is already patched")
+                continue
+
+            if root in patch_by_dimensions:
+                # already patched at this level
+                print(f"MIGHT NOT BE NEEDED WITH THE TEST ABOVE: {root}")
+                continue
+
+            print(f"  Checking {root}...")
+            if all(is_patched(dim, patch_by_dimensions.keys()) for dim in dims):
+                # we can coalesce all matching patches into root
+                print(f"    Coalescing {dims}")
+                new_patch = Patch(
+                    cluster_type,
+                    application,
+                    root,
+                    patch_name,
+                    config.root
+                    / cluster_type
+                    / application
+                    / Path(*root)
+                    / f"{patch_name}.yaml",
+                )
+                # create new patch in root - use any existing patch for content
+                source_patch = list(patch_by_dimensions.values())[0]
+                shutil.copy2(source_patch.path, new_patch.path)
+                patch_by_dimensions[root] = new_patch
+                # remove old patches in children dimensions
+                for patch in [p for p in patches if p.dimensions[: len(root)] == root]:
+                    patch.path.unlink()
+                    del patch_by_dimensions[patch.dimensions]
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Promote patches through the fleet")
+    parser.add_argument("cluster_type", help="e.g. management-cluster")
+    parser.add_argument("application", help="e.g. hypershift")
+    parser.add_argument("patch_name", help="e.g. patch-001")
+
+    args = parser.parse_args()
+
+    patches = list(
+        find_patches(args.cluster_type, args.application, args.patch_name)
+    )
+    if not patches:
+        print(f"ERROR: No patches found for {args.application}")
+        sys.exit(1)
+
+    # Check for gaps first
+    detect_gaps(patches)
+
+    # Promote the patch if possible
+    promote(patches, args.cluster_type, args.application)
+
+    # Coalesce patches if possible
+    coalesce_patches(args.cluster_type, args.application, args.patch_name)
 
     print("✓ Promoted successfully")
     print("\nNext steps:")

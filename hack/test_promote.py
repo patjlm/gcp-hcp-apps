@@ -86,7 +86,7 @@ def test_gap_detection_no_gaps():
             os.chdir(base_dir)
             # Get patches and test gap detection
             all_patches = list(
-                promote.find_all_patches("management-cluster", "test-app", "patch-001")
+                promote.find_patches("management-cluster", "test-app", "patch-001")
             )
             # No exception should be raised for valid sequence
             promote.detect_gaps(all_patches)
@@ -117,7 +117,7 @@ def test_gap_detection_region_gap():
             os.chdir(base_dir)
             # Get patches and test gap detection
             all_patches = list(
-                promote.find_all_patches("management-cluster", "test-app", "patch-001")
+                promote.find_patches("management-cluster", "test-app", "patch-001")
             )
             # Should raise ValueError for gap
             with pytest.raises(ValueError) as exc_info:
@@ -153,7 +153,7 @@ def test_gap_detection_sector_gap():
             os.chdir(base_dir)
             # Get patches and test gap detection
             all_patches = list(
-                promote.find_all_patches("management-cluster", "test-app", "patch-001")
+                promote.find_patches("management-cluster", "test-app", "patch-001")
             )
             # Should raise ValueError for gap
             with pytest.raises(ValueError) as exc_info:
@@ -189,7 +189,7 @@ def test_gap_detection_environment_gap():
             os.chdir(base_dir)
             # Get patches and test gap detection
             all_patches = list(
-                promote.find_all_patches("management-cluster", "test-app", "patch-001")
+                promote.find_patches("management-cluster", "test-app", "patch-001")
             )
             # Should raise ValueError for gap
             with pytest.raises(ValueError) as exc_info:
@@ -205,18 +205,18 @@ def test_walk_function():
     config = create_test_config()
 
     # Test all possible walk paths
-    all_paths = list(promote.walk(config["sequence"], config["dimensions"], []))
+    all_paths = list(promote.walk(config["sequence"], tuple(config["dimensions"]), ()))
 
     expected_paths = [
-        ["env1"],
-        ["env1", "sector1"],
-        ["env1", "sector1", "region1"],
-        ["env1", "sector1", "region2"],
-        ["env1", "sector2"],
-        ["env1", "sector2", "region1"],
-        ["env2"],
-        ["env2", "sector1"],
-        ["env2", "sector1", "region1"],
+        ("env1",),
+        ("env1", "sector1"),
+        ("env1", "sector1", "region1"),
+        ("env1", "sector1", "region2"),
+        ("env1", "sector2"),
+        ("env1", "sector2", "region1"),
+        ("env2",),
+        ("env2", "sector1"),
+        ("env2", "sector1", "region1"),
     ]
 
     assert all_paths == expected_paths
@@ -289,7 +289,7 @@ def test_real_config_gap_detection_region_gap():
         ):
             os.chdir(base_dir)
             all_patches = list(
-                promote.find_all_patches("management-cluster", "test-app", "patch-001")
+                promote.find_patches("management-cluster", "test-app", "patch-001")
             )
             with pytest.raises(ValueError) as exc_info:
                 promote.detect_gaps(all_patches)
@@ -322,7 +322,7 @@ def test_real_config_gap_detection_sector_gap():
         ):
             os.chdir(base_dir)
             all_patches = list(
-                promote.find_all_patches("management-cluster", "test-app", "patch-001")
+                promote.find_patches("management-cluster", "test-app", "patch-001")
             )
             with pytest.raises(ValueError) as exc_info:
                 promote.detect_gaps(all_patches)
@@ -355,7 +355,7 @@ def test_real_config_gap_detection_environment_gap():
         ):
             os.chdir(base_dir)
             all_patches = list(
-                promote.find_all_patches("management-cluster", "test-app", "patch-001")
+                promote.find_patches("management-cluster", "test-app", "patch-001")
             )
             with pytest.raises(ValueError) as exc_info:
                 promote.detect_gaps(all_patches)
@@ -388,7 +388,7 @@ def test_valid_region_to_region_promotion():
         ):
             os.chdir(base_dir)
             all_patches = list(
-                promote.find_all_patches("management-cluster", "test-app", "patch-001")
+                promote.find_patches("management-cluster", "test-app", "patch-001")
             )
 
             # Should not raise any errors (no gaps)
@@ -431,7 +431,7 @@ def test_valid_region_to_sector_promotion():
         ):
             os.chdir(base_dir)
             all_patches = list(
-                promote.find_all_patches("management-cluster", "test-app", "patch-001")
+                promote.find_patches("management-cluster", "test-app", "patch-001")
             )
 
             # Should not raise any errors (no gaps)
@@ -471,7 +471,7 @@ def test_valid_sector_to_sector_promotion():
         ):
             os.chdir(base_dir)
             all_patches = list(
-                promote.find_all_patches("management-cluster", "test-app", "patch-001")
+                promote.find_patches("management-cluster", "test-app", "patch-001")
             )
 
             # Should not raise any errors (no gaps)
@@ -511,7 +511,7 @@ def test_valid_environment_to_environment_promotion():
         ):
             os.chdir(base_dir)
             all_patches = list(
-                promote.find_all_patches("management-cluster", "test-app", "patch-001")
+                promote.find_patches("management-cluster", "test-app", "patch-001")
             )
 
             # Should not raise any errors (no gaps)
@@ -551,7 +551,7 @@ def test_no_patches_found():
         ):
             os.chdir(base_dir)
             all_patches = list(
-                promote.find_all_patches("management-cluster", "test-app", "patch-001")
+                promote.find_patches("management-cluster", "test-app", "patch-001")
             )
             assert len(all_patches) == 0
 
@@ -586,7 +586,7 @@ def test_end_of_sequence():
         ):
             os.chdir(base_dir)
             all_patches = list(
-                promote.find_all_patches("management-cluster", "test-app", "patch-001")
+                promote.find_patches("management-cluster", "test-app", "patch-001")
             )
 
             # Should not raise any errors (no gaps)
@@ -620,7 +620,7 @@ def test_complete_promotion_flow():
             patches = ["integration/int-sector-1/us-central1"]
             create_test_filesystem(base_dir, patches)
             all_patches = list(
-                promote.find_all_patches("management-cluster", "test-app", "patch-001")
+                promote.find_patches("management-cluster", "test-app", "patch-001")
             )
             next_location = promote.get_next_location(
                 all_patches, "management-cluster", "test-app"
@@ -635,7 +635,7 @@ def test_complete_promotion_flow():
             patches.append("integration/int-sector-1/europe-west1")
             create_test_filesystem(base_dir, patches)
             all_patches = list(
-                promote.find_all_patches("management-cluster", "test-app", "patch-001")
+                promote.find_patches("management-cluster", "test-app", "patch-001")
             )
             next_location = promote.get_next_location(
                 all_patches, "management-cluster", "test-app"
@@ -650,7 +650,7 @@ def test_complete_promotion_flow():
             patches.append("integration/int-sector-2")
             create_test_filesystem(base_dir, patches)
             all_patches = list(
-                promote.find_all_patches("management-cluster", "test-app", "patch-001")
+                promote.find_patches("management-cluster", "test-app", "patch-001")
             )
             next_location = promote.get_next_location(
                 all_patches, "management-cluster", "test-app"
@@ -662,11 +662,484 @@ def test_complete_promotion_flow():
             assert next_location == expected
 
 
+def test_coalesce_patches_region_to_sector():
+    """Test coalescing region-level patches to sector level."""
+    config = create_real_test_config()
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        base_dir = Path(tmp_dir)
+
+        # Create patches at both regions in a sector
+        patches = [
+            "integration/int-sector-1/us-central1",
+            "integration/int-sector-1/europe-west1",
+        ]
+        create_test_filesystem(base_dir, patches)
+
+        mock_config = promote.Config()
+        mock_config.config = config
+        mock_config.dimensions = config["dimensions"]
+        mock_config.sequence = config["sequence"]
+        mock_config.root = base_dir / "config"
+
+        with (
+            patch("promote.config", mock_config),
+            patch.object(Path, "cwd", return_value=base_dir),
+        ):
+            os.chdir(base_dir)
+            # Should coalesce to sector level
+            promote.coalesce_patches("management-cluster", "test-app", "patch-001")
+
+            # Verify sector-level patch was created
+            sector_patch = (
+                base_dir
+                / "config/management-cluster/test-app/integration/int-sector-1/patch-001.yaml"
+            )
+            assert sector_patch.exists()
+
+            # Verify region-level patches were removed
+            region1_patch = (
+                base_dir
+                / "config/management-cluster/test-app/integration/int-sector-1/us-central1/patch-001.yaml"
+            )
+            region2_patch = (
+                base_dir
+                / "config/management-cluster/test-app/integration/int-sector-1/europe-west1/patch-001.yaml"
+            )
+            assert not region1_patch.exists()
+            assert not region2_patch.exists()
+
+
+def test_coalesce_patches_sector_to_environment():
+    """Test coalescing sector-level patches to environment level."""
+    config = create_real_test_config()
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        base_dir = Path(tmp_dir)
+
+        # Create patches at both sectors in an environment
+        patches = [
+            "integration/int-sector-1",
+            "integration/int-sector-2",
+        ]
+        create_test_filesystem(base_dir, patches)
+
+        mock_config = promote.Config()
+        mock_config.config = config
+        mock_config.dimensions = config["dimensions"]
+        mock_config.sequence = config["sequence"]
+        mock_config.root = base_dir / "config"
+
+        with (
+            patch("promote.config", mock_config),
+            patch.object(Path, "cwd", return_value=base_dir),
+        ):
+            os.chdir(base_dir)
+            # Should coalesce to environment level
+            promote.coalesce_patches("management-cluster", "test-app", "patch-001")
+
+            # Verify environment-level patch was created
+            env_patch = (
+                base_dir
+                / "config/management-cluster/test-app/integration/patch-001.yaml"
+            )
+            assert env_patch.exists()
+
+            # Verify sector-level patches were removed
+            sector1_patch = (
+                base_dir
+                / "config/management-cluster/test-app/integration/int-sector-1/patch-001.yaml"
+            )
+            sector2_patch = (
+                base_dir
+                / "config/management-cluster/test-app/integration/int-sector-2/patch-001.yaml"
+            )
+            assert not sector1_patch.exists()
+            assert not sector2_patch.exists()
+
+
+def test_coalesce_patches_mixed_levels():
+    """Test coalescing with patches at different levels (region + sector)."""
+    config = create_real_test_config()
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        base_dir = Path(tmp_dir)
+
+        # Create patches: complete coverage of one sector + full sector coverage
+        patches = [
+            "integration/int-sector-1/us-central1",  # Region level
+            "integration/int-sector-1/europe-west1",  # Complete int-sector-1 coverage
+            "integration/int-sector-2",  # Sector level (covers all int-sector-2)
+        ]
+        create_test_filesystem(base_dir, patches)
+
+        mock_config = promote.Config()
+        mock_config.config = config
+        mock_config.dimensions = config["dimensions"]
+        mock_config.sequence = config["sequence"]
+        mock_config.root = base_dir / "config"
+
+        with (
+            patch("promote.config", mock_config),
+            patch.object(Path, "cwd", return_value=base_dir),
+        ):
+            os.chdir(base_dir)
+            # Should coalesce to environment level since both sectors are covered
+            promote.coalesce_patches("management-cluster", "test-app", "patch-001")
+
+            # Verify environment-level patch was created
+            env_patch = (
+                base_dir
+                / "config/management-cluster/test-app/integration/patch-001.yaml"
+            )
+            assert env_patch.exists()
+
+            # Verify original patches were removed
+            region_patch = (
+                base_dir
+                / "config/management-cluster/test-app/integration/int-sector-1/us-central1/patch-001.yaml"
+            )
+            sector_patch = (
+                base_dir
+                / "config/management-cluster/test-app/integration/int-sector-2/patch-001.yaml"
+            )
+            assert not region_patch.exists()
+            assert not sector_patch.exists()
+
+
+def test_coalesce_patches_incomplete_coverage():
+    """Test that coalescing doesn't happen with incomplete coverage."""
+    config = create_real_test_config()
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        base_dir = Path(tmp_dir)
+
+        # Create patch at only one region (incomplete sector coverage)
+        patches = [
+            "integration/int-sector-1/us-central1",
+        ]
+        create_test_filesystem(base_dir, patches)
+
+        mock_config = promote.Config()
+        mock_config.config = config
+        mock_config.dimensions = config["dimensions"]
+        mock_config.sequence = config["sequence"]
+        mock_config.root = base_dir / "config"
+
+        with (
+            patch("promote.config", mock_config),
+            patch.object(Path, "cwd", return_value=base_dir),
+        ):
+            os.chdir(base_dir)
+            # Should NOT coalesce since europe-west1 is missing
+            promote.coalesce_patches("management-cluster", "test-app", "patch-001")
+
+            # Verify original patch still exists
+            region_patch = (
+                base_dir
+                / "config/management-cluster/test-app/integration/int-sector-1/us-central1/patch-001.yaml"
+            )
+            assert region_patch.exists()
+
+            # Verify no sector-level patch was created
+            sector_patch = (
+                base_dir
+                / "config/management-cluster/test-app/integration/int-sector-1/patch-001.yaml"
+            )
+            assert not sector_patch.exists()
+
+
+def test_coalesce_patches_already_at_higher_level():
+    """Test that coalescing skips when higher level patch already exists."""
+    config = create_real_test_config()
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        base_dir = Path(tmp_dir)
+
+        # Create patches: regions + sector level already exists
+        patches = [
+            "integration/int-sector-1",  # Sector level (higher)
+            "integration/int-sector-1/us-central1",  # Region level (redundant)
+            "integration/int-sector-1/europe-west1",  # Region level (redundant)
+        ]
+        create_test_filesystem(base_dir, patches)
+
+        mock_config = promote.Config()
+        mock_config.config = config
+        mock_config.dimensions = config["dimensions"]
+        mock_config.sequence = config["sequence"]
+        mock_config.root = base_dir / "config"
+
+        with (
+            patch("promote.config", mock_config),
+            patch.object(Path, "cwd", return_value=base_dir),
+        ):
+            os.chdir(base_dir)
+            # Should skip coalescing since sector level already exists
+            promote.coalesce_patches("management-cluster", "test-app", "patch-001")
+
+            # Verify sector-level patch still exists
+            sector_patch = (
+                base_dir
+                / "config/management-cluster/test-app/integration/int-sector-1/patch-001.yaml"
+            )
+            assert sector_patch.exists()
+
+            # Region patches should still exist (not removed by coalescing)
+            region1_patch = (
+                base_dir
+                / "config/management-cluster/test-app/integration/int-sector-1/us-central1/patch-001.yaml"
+            )
+            region2_patch = (
+                base_dir
+                / "config/management-cluster/test-app/integration/int-sector-1/europe-west1/patch-001.yaml"
+            )
+            assert region1_patch.exists()
+            assert region2_patch.exists()
+
+
+def test_coalesce_patches_cross_environment():
+    """Test coalescing across multiple environments."""
+    config = create_real_test_config()
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        base_dir = Path(tmp_dir)
+
+        # Create patches covering all sectors in integration and stage
+        patches = [
+            "integration/int-sector-1",
+            "integration/int-sector-2",
+            "stage/stage-sector-1",
+            "stage/stage-sector-2",
+        ]
+        create_test_filesystem(base_dir, patches)
+
+        mock_config = promote.Config()
+        mock_config.config = config
+        mock_config.dimensions = config["dimensions"]
+        mock_config.sequence = config["sequence"]
+        mock_config.root = base_dir / "config"
+
+        with (
+            patch("promote.config", mock_config),
+            patch.object(Path, "cwd", return_value=base_dir),
+        ):
+            os.chdir(base_dir)
+            # Should coalesce each environment separately
+            promote.coalesce_patches("management-cluster", "test-app", "patch-001")
+
+            # Verify environment-level patches were created
+            int_patch = (
+                base_dir
+                / "config/management-cluster/test-app/integration/patch-001.yaml"
+            )
+            stage_patch = (
+                base_dir / "config/management-cluster/test-app/stage/patch-001.yaml"
+            )
+            assert int_patch.exists()
+            assert stage_patch.exists()
+
+            # Verify sector-level patches were removed
+            assert not (
+                base_dir
+                / "config/management-cluster/test-app/integration/int-sector-1/patch-001.yaml"
+            ).exists()
+            assert not (
+                base_dir
+                / "config/management-cluster/test-app/integration/int-sector-2/patch-001.yaml"
+            ).exists()
+            assert not (
+                base_dir
+                / "config/management-cluster/test-app/stage/stage-sector-1/patch-001.yaml"
+            ).exists()
+            assert not (
+                base_dir
+                / "config/management-cluster/test-app/stage/stage-sector-2/patch-001.yaml"
+            ).exists()
+
+
+def test_coalesce_patches_partial_cross_environment():
+    """Test that cross-environment coalescing doesn't happen with partial coverage."""
+    config = create_real_test_config()
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        base_dir = Path(tmp_dir)
+
+        # Create patches: complete integration, partial stage
+        patches = [
+            "integration/int-sector-1",
+            "integration/int-sector-2",
+            "stage/stage-sector-1",  # Missing stage-sector-2
+        ]
+        create_test_filesystem(base_dir, patches)
+
+        mock_config = promote.Config()
+        mock_config.config = config
+        mock_config.dimensions = config["dimensions"]
+        mock_config.sequence = config["sequence"]
+        mock_config.root = base_dir / "config"
+
+        with (
+            patch("promote.config", mock_config),
+            patch.object(Path, "cwd", return_value=base_dir),
+        ):
+            os.chdir(base_dir)
+            # Should coalesce integration only
+            promote.coalesce_patches("management-cluster", "test-app", "patch-001")
+
+            # Verify integration was coalesced
+            int_patch = (
+                base_dir
+                / "config/management-cluster/test-app/integration/patch-001.yaml"
+            )
+            assert int_patch.exists()
+
+            # Verify stage was NOT coalesced (incomplete)
+            stage_patch = (
+                base_dir / "config/management-cluster/test-app/stage/patch-001.yaml"
+            )
+            assert not stage_patch.exists()
+
+            # Verify stage sector-1 still exists
+            stage_sector_patch = (
+                base_dir
+                / "config/management-cluster/test-app/stage/stage-sector-1/patch-001.yaml"
+            )
+            assert stage_sector_patch.exists()
+
+
+def test_coalesce_patches_empty_input():
+    """Test coalescing with no patches found."""
+    # This test is about behavior when no patches exist, so we use a non-existent patch name
+    config = create_real_test_config()
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        base_dir = Path(tmp_dir)
+
+        mock_config = promote.Config()
+        mock_config.config = config
+        mock_config.dimensions = config["dimensions"]
+        mock_config.sequence = config["sequence"]
+        mock_config.root = base_dir / "config"
+
+        with (
+            patch("promote.config", mock_config),
+            patch.object(Path, "cwd", return_value=base_dir),
+        ):
+            os.chdir(base_dir)
+            # Should handle empty patches gracefully
+            promote.coalesce_patches(
+                "management-cluster", "test-app", "nonexistent-patch"
+            )
+
+
+def test_coalesce_patches_content_preservation():
+    """Test that patch content is preserved during coalescing."""
+    config = create_real_test_config()
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        base_dir = Path(tmp_dir)
+
+        # Create patches with specific content at both regions
+        app_dir = base_dir / "config" / "management-cluster" / "test-app"
+
+        region1_dir = app_dir / "integration/int-sector-1/us-central1"
+        region1_dir.mkdir(parents=True, exist_ok=True)
+        region1_content = "test: region1-specific-content"
+        (region1_dir / "patch-001.yaml").write_text(region1_content)
+
+        region2_dir = app_dir / "integration/int-sector-1/europe-west1"
+        region2_dir.mkdir(parents=True, exist_ok=True)
+        region2_content = "test: region2-specific-content"
+        (region2_dir / "patch-001.yaml").write_text(region2_content)
+
+        mock_config = promote.Config()
+        mock_config.config = config
+        mock_config.dimensions = config["dimensions"]
+        mock_config.sequence = config["sequence"]
+        mock_config.root = base_dir / "config"
+
+        with (
+            patch("promote.config", mock_config),
+            patch.object(Path, "cwd", return_value=base_dir),
+        ):
+            os.chdir(base_dir)
+            # Should coalesce and preserve content from first patch
+            promote.coalesce_patches("management-cluster", "test-app", "patch-001")
+
+            # Verify sector-level patch has content from first region
+            sector_patch = (
+                base_dir
+                / "config/management-cluster/test-app/integration/int-sector-1/patch-001.yaml"
+            )
+            assert sector_patch.exists()
+            coalesced_content = sector_patch.read_text()
+            assert coalesced_content == region1_content
+
+
+def test_promote_function():
+    """Test the full promote function workflow."""
+    config = create_real_test_config()
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        base_dir = Path(tmp_dir)
+
+        # Create patch in first region
+        patches = ["integration/int-sector-1/us-central1"]
+        create_test_filesystem(base_dir, patches)
+
+        mock_config = promote.Config()
+        mock_config.config = config
+        mock_config.dimensions = config["dimensions"]
+        mock_config.sequence = config["sequence"]
+        mock_config.root = base_dir / "config"
+
+        with (
+            patch("promote.config", mock_config),
+            patch.object(Path, "cwd", return_value=base_dir),
+        ):
+            os.chdir(base_dir)
+            all_patches = list(
+                promote.find_patches("management-cluster", "test-app", "patch-001")
+            )
+
+            # Should promote to next region
+            promote.promote(all_patches, "management-cluster", "test-app")
+
+            # Verify new patch was created
+            next_patch = (
+                base_dir
+                / "config/management-cluster/test-app/integration/int-sector-1/europe-west1/patch-001.yaml"
+            )
+            assert next_patch.exists()
+
+            # Verify original patch still exists
+            original_patch = (
+                base_dir
+                / "config/management-cluster/test-app/integration/int-sector-1/us-central1/patch-001.yaml"
+            )
+            assert original_patch.exists()
+
+
 if __name__ == "__main__":
     # Run tests with improved gap detection
     test_gap_detection_no_gaps()
     test_gap_detection_region_gap()
     test_gap_detection_sector_gap()
     test_gap_detection_environment_gap()
+
+    # Run coalescing tests
+    test_coalesce_patches_region_to_sector()
+    test_coalesce_patches_sector_to_environment()
+    test_coalesce_patches_mixed_levels()
+    test_coalesce_patches_incomplete_coverage()
+    test_coalesce_patches_already_at_higher_level()
+    test_coalesce_patches_cross_environment()
+    test_coalesce_patches_partial_cross_environment()
+    test_coalesce_patches_empty_input()
+    test_coalesce_patches_content_preservation()
+
+    # Run promote function test
+    test_promote_function()
 
     print("✅ All tests passed!")
