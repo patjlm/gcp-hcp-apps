@@ -26,6 +26,14 @@ applicationsets:
           repoURL: https://github.com/company/gcp-hcp-apps
           targetRevision: HEAD
           path: "rendered/infra-cluster/{{ .Values.cluster.environment }}/{{ .Values.cluster.sector }}/{{ .Values.cluster.region }}"
+          helm:
+            valuesObject:
+              cluster:
+                region: "{{ .Values.cluster.region }}"
+                environment: "{{ .Values.cluster.environment }}"
+                sector: "{{ .Values.cluster.sector }}"
+                projectId: "{{`{{ index .metadata.annotations \"gcp-hcp/project-id\" }}`}}"
+                vpcId: "{{`{{ index .metadata.annotations \"gcp-hcp/vpc-id\" }}`}}"
         destination:
           server: "{{.server}}"
           namespace: argocd
