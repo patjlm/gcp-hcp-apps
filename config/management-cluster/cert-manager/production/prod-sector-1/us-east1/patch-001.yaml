@@ -1,7 +1,0 @@
-metadata:
-  description: "Upgrade cert-manager to v1.16.0 in production canary region"
-
-applications:
-  cert-manager:
-    source:
-      targetRevision: "v1.16.0"
