@@ -14,8 +14,8 @@ applications:
           # Cluster values injected by ApplicationSet
           cluster:
             region: "{{ .Values.cluster.region }}"
-            projectId: "{{ .Values.cluster.projectId }}"
-            vpcId: "{{ .Values.cluster.vpcId }}"
+            projectId: "{{`{{ .Values.cluster.projectId }}`}}"
+            vpcId: "{{`{{ .Values.cluster.vpcId }}`}}"
 
     # Deployment destination
     destination:

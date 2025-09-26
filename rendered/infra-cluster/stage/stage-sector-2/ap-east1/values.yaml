@@ -1,3 +1,7 @@
+cluster:
+  environment: stage
+  sector: stage-sector-2
+  region: ap-east1
 applications:
   argocd:
     project: default
@@ -12,7 +16,7 @@ applications:
       - CreateNamespace=true
       - ServerSideApply=true
     destination:
-      name: '{{ .Values.cluster.name }}'
+      name: '{{`{{ .Values.cluster.name }}`}}'
       namespace: argocd
     source:
       repoURL: https://argoproj.github.io/argo-helm
@@ -46,9 +50,9 @@ applicationsets:
           region: '{{ .Values.cluster.region }}'
     template:
       metadata:
-        name: infra-apps-{{.name}}
+        name: infra-apps-{{`{{.name}}`}}
         labels:
-          cluster: '{{.name}}'
+          cluster: '{{`{{.name}}`}}'
           cluster-type: infra-cluster
           environment: '{{ .Values.cluster.environment }}'
           sector: '{{ .Values.cluster.sector }}'
@@ -65,10 +69,10 @@ applicationsets:
                 region: '{{ .Values.cluster.region }}'
                 environment: '{{ .Values.cluster.environment }}'
                 sector: '{{ .Values.cluster.sector }}'
-                projectId: '{{`{{ index .metadata.annotations "gcp-hcp/project-id" }}`}}'
-                vpcId: '{{`{{ index .metadata.annotations "gcp-hcp/vpc-id" }}`}}'
+                projectId: '{{`{{"{{"}} index .metadata.annotations "gcp-hcp/project-id" {{"}}"}}`}}'
+                vpcId: '{{`{{"{{"}} index .metadata.annotations "gcp-hcp/vpc-id" {{"}}"}}`}}'
         destination:
-          server: '{{.server}}'
+          server: '{{`{{.server}}`}}'
           namespace: argocd
         syncPolicy:
           automated:
@@ -94,9 +98,9 @@ applicationsets:
           region: '{{ .Values.cluster.region }}'
     template:
       metadata:
-        name: mgmt-apps-{{.name}}
+        name: mgmt-apps-{{`{{.name}}`}}
         labels:
-          cluster: '{{.name}}'
+          cluster: '{{`{{.name}}`}}'
           cluster-type: management-cluster
           environment: '{{ .Values.cluster.environment }}'
           sector: '{{ .Values.cluster.sector }}'
@@ -114,10 +118,10 @@ applicationsets:
                 region: '{{ .Values.cluster.region }}'
                 environment: '{{ .Values.cluster.environment }}'
                 sector: '{{ .Values.cluster.sector }}'
-                projectId: '{{`{{ index .metadata.annotations "gcp-hcp/project-id" }}`}}'
-                vpcId: '{{`{{ index .metadata.annotations "gcp-hcp/vpc-id" }}`}}'
+                projectId: '{{`{{"{{"}} index .metadata.annotations "gcp-hcp/project-id" {{"}}"}}`}}'
+                vpcId: '{{`{{"{{"}} index .metadata.annotations "gcp-hcp/vpc-id" {{"}}"}}`}}'
         destination:
-          server: '{{.server}}'
+          server: '{{`{{.server}}`}}'
           namespace: argocd
         syncPolicy:
           automated:

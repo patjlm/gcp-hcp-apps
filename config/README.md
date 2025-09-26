@@ -1,0 +1,5 @@
+# Main configuration folder
+
+```mermaid
+
+```

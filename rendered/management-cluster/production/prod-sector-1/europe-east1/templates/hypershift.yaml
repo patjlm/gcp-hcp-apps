@@ -9,8 +9,8 @@ spec:
   project: default
   source:
     path: hypershift
-    repoURL: '{{ .Values.cluster.repoURL | default "https://github.com/patjlm/gcp-hcp-apps.git" }}'
-    targetRevision: '{{ .Values.cluster.targetRevision | default "main" }}'
+    repoURL: https://github.com/patjlm/gcp-hcp-apps.git
+    targetRevision: main
   destination:
     name: '{{ .Values.cluster.name }}'
     namespace: hypershift

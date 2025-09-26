@@ -1,3 +1,7 @@
+cluster:
+  environment: stage
+  sector: stage-sector-1
+  region: us-east1
 applications:
   cert-manager:
     project: default
@@ -12,7 +16,7 @@ applications:
       - CreateNamespace=true
       - ServerSideApply=true
     destination:
-      name: '{{ .Values.cluster.name }}'
+      name: '{{`{{ .Values.cluster.name }}`}}'
       namespace: cert-manager
     source:
       repoURL: https://charts.jetstack.io
@@ -41,7 +45,7 @@ applications:
       - CreateNamespace=true
       - ServerSideApply=true
     destination:
-      name: '{{ .Values.cluster.name }}'
+      name: '{{`{{ .Values.cluster.name }}`}}'
       namespace: hypershift
     source:
       repoURL: '{{ .Values.cluster.repoURL | default "https://github.com/patjlm/gcp-hcp-apps.git" }}'
@@ -60,7 +64,7 @@ applications:
       - CreateNamespace=true
       - ServerSideApply=true
     destination:
-      name: '{{ .Values.cluster.name }}'
+      name: '{{`{{ .Values.cluster.name }}`}}'
       namespace: monitoring
     source:
       repoURL: https://prometheus-community.github.io/helm-charts
@@ -73,5 +77,5 @@ applications:
               type: ClusterIP
           cluster:
             region: '{{ .Values.cluster.region }}'
-            projectId: '{{ .Values.cluster.projectId }}'
-            vpcId: '{{ .Values.cluster.vpcId }}'
+            projectId: '{{`{{ .Values.cluster.projectId }}`}}'
+            vpcId: '{{`{{ .Values.cluster.vpcId }}`}}'

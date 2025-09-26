@@ -94,6 +94,60 @@ find . -name "*.yaml" -o -name "*.yml" | xargs -I {} yaml-lint {}
 kubectl --dry-run=client apply -f rendered/management-cluster/production/prod-sector-1/us-east1/templates/
 ```
 
+## Template Processing and Value Injection
+
+### Double Templating Pattern
+
+The generator uses a **double templating approach** to resolve nested template references in configuration values:
+
+1. **First Helm Pass**: Processes the original `argocd-apps` chart with merged configuration values
+2. **Second Helm Pass**: Treats the first pass output as templates and processes them again with the same values
+
+This allows values like `{{ .Values.cluster.region }}` to be resolved to actual values (e.g., `us-central1`) while preserving ArgoCD-specific templates.
+
+### Cluster Dimension Injection
+
+The generator automatically injects cluster-specific values into the `cluster` object for each target:
+
+```yaml
+cluster:
+  environment: "integration"    # From config dimensions: environments → environment
+  sector: "int-sector-1"       # From config dimensions: sectors → sector
+  region: "us-central1"        # From config dimensions: regions → region
+```
+
+**Dimension Singularization**: Plural dimension names from `config.yaml` are automatically converted to singular names by removing the trailing 's'.
+
+### Template Escaping Patterns
+
+For values that should be resolved by ArgoCD (not the generator), use double escaping:
+
+#### For Cluster Values
+```yaml
+# Use in source configuration for ArgoCD resolution
+projectId: "{{`{{ .Values.cluster.projectId }}`}}"
+region: "{{ .Values.cluster.region }}"  # Gets resolved to actual value
+
+# Results in rendered output
+projectId: '{{ .Values.cluster.projectId }}'  # For ArgoCD
+region: us-central1                            # Resolved value
+```
+
+#### For ArgoCD ApplicationSet Metadata
+```yaml
+# Use in source configuration for ArgoCD ApplicationSet resolution
+projectId: '{{`{{"{{"}} index .metadata.annotations "gcp-hcp/project-id" {{"}}"}}`}}'
+
+# Processing flow:
+# 1st pass (value injection): {{`{{"{{"}} index .metadata.annotations "gcp-hcp/project-id" {{"}}"}}`}}
+# 2nd pass (template processing): {{"{{"}} index .metadata.annotations "gcp-hcp/project-id" {{"}}"}}
+# ArgoCD (final resolution): {{ index .metadata.annotations "gcp-hcp/project-id" }}
+```
+
+**Escape Mechanisms**:
+- **Backticks** (`{{` ... `}}`): Survive value→template transition
+- **Literal braces** (`{{"{{"}}`, `{{"}}"}}`) Produce literal `{{` and `}}` in templates
+
 ## Key Configuration Patterns
 
 ### Adding New Applications

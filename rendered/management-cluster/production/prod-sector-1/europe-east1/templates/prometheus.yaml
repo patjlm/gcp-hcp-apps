@@ -13,7 +13,7 @@ spec:
       valuesObject:
         cluster:
           projectId: '{{ .Values.cluster.projectId }}'
-          region: '{{ .Values.cluster.region }}'
+          region: europe-east1
           vpcId: '{{ .Values.cluster.vpcId }}'
         grafana:
           persistence:

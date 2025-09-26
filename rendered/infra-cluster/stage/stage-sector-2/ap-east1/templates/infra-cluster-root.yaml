@@ -12,9 +12,9 @@ spec:
         matchLabels:
           gcp-hcp/cluster-type: infra-cluster
       values:
-        environment: '{{ .Values.cluster.environment }}'
-        region: '{{ .Values.cluster.region }}'
-        sector: '{{ .Values.cluster.sector }}'
+        environment: stage
+        region: ap-east1
+        sector: stage-sector-2
   syncPolicy:
     preserveResourcesOnDeletion: false
   template:
@@ -22,9 +22,9 @@ spec:
       labels:
         cluster: '{{.name}}'
         cluster-type: infra-cluster
-        environment: '{{ .Values.cluster.environment }}'
-        region: '{{ .Values.cluster.region }}'
-        sector: '{{ .Values.cluster.sector }}'
+        environment: stage
+        region: ap-east1
+        sector: stage-sector-2
       name: infra-apps-{{.name}}
     spec:
       project: default
@@ -32,12 +32,12 @@ spec:
         helm:
           valuesObject:
             cluster:
-              environment: '{{ .Values.cluster.environment }}'
-              projectId: '{{`{{ index .metadata.annotations "gcp-hcp/project-id" }}`}}'
-              region: '{{ .Values.cluster.region }}'
-              sector: '{{ .Values.cluster.sector }}'
-              vpcId: '{{`{{ index .metadata.annotations "gcp-hcp/vpc-id" }}`}}'
-        path: rendered/infra-cluster/{{ .Values.cluster.environment }}/{{ .Values.cluster.sector }}/{{ .Values.cluster.region }}
+              environment: stage
+              projectId: '{{"{{"}} index .metadata.annotations "gcp-hcp/project-id" {{"}}"}}'
+              region: ap-east1
+              sector: stage-sector-2
+              vpcId: '{{"{{"}} index .metadata.annotations "gcp-hcp/vpc-id" {{"}}"}}'
+        path: rendered/infra-cluster/stage/stage-sector-2/ap-east1
         repoURL: https://github.com/company/gcp-hcp-apps
         targetRevision: HEAD
       destination:

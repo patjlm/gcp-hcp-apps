@@ -13,9 +13,9 @@ applicationsets:
 
     template:
       metadata:
-        name: "mgmt-apps-{{.name}}"
+        name: "mgmt-apps-{{`{{.name}}`}}"
         labels:
-          cluster: "{{.name}}"
+          cluster: "{{`{{.name}}`}}"
           cluster-type: management-cluster
           environment: "{{ .Values.cluster.environment }}"
           sector: "{{ .Values.cluster.sector }}"
@@ -33,10 +33,10 @@ applicationsets:
                 region: "{{ .Values.cluster.region }}"
                 environment: "{{ .Values.cluster.environment }}"
                 sector: "{{ .Values.cluster.sector }}"
-                projectId: "{{`{{ index .metadata.annotations \"gcp-hcp/project-id\" }}`}}"
-                vpcId: "{{`{{ index .metadata.annotations \"gcp-hcp/vpc-id\" }}`}}"
+                projectId: '{{`{{"{{"}} index .metadata.annotations "gcp-hcp/project-id" {{"}}"}}`}}'
+                vpcId: '{{`{{"{{"}} index .metadata.annotations "gcp-hcp/vpc-id" {{"}}"}}`}}'
         destination:
-          server: "{{.server}}"
+          server: "{{`{{.server}}`}}"
           namespace: argocd
         syncPolicy:
           automated:

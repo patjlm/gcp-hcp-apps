@@ -12,7 +12,7 @@ applications:
       syncOptions:
         - CreateNamespace=true
     destination:
-      name: "{{ .Values.cluster.name }}"  # Target cluster from ApplicationSet
+      name: "{{`{{ .Values.cluster.name }}`}}"  # Target cluster from ApplicationSet
 
 applicationsets:
   default:

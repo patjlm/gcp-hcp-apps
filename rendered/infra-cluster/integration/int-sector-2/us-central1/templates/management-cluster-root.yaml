@@ -12,9 +12,9 @@ spec:
         matchLabels:
           gcp-hcp/cluster-type: management-cluster
       values:
-        environment: '{{ .Values.cluster.environment }}'
-        region: '{{ .Values.cluster.region }}'
-        sector: '{{ .Values.cluster.sector }}'
+        environment: integration
+        region: us-central1
+        sector: int-sector-2
   syncPolicy:
     preserveResourcesOnDeletion: false
   template:
@@ -22,9 +22,9 @@ spec:
       labels:
         cluster: '{{.name}}'
         cluster-type: management-cluster
-        environment: '{{ .Values.cluster.environment }}'
-        region: '{{ .Values.cluster.region }}'
-        sector: '{{ .Values.cluster.sector }}'
+        environment: integration
+        region: us-central1
+        sector: int-sector-2
       name: mgmt-apps-{{.name}}
     spec:
       project: default
@@ -32,13 +32,13 @@ spec:
         helm:
           valuesObject:
             cluster:
-              environment: '{{ .Values.cluster.environment }}'
-              name: '{{ .name }}'
-              projectId: '{{`{{ index .metadata.annotations "gcp-hcp/project-id" }}`}}'
-              region: '{{ .Values.cluster.region }}'
-              sector: '{{ .Values.cluster.sector }}'
-              vpcId: '{{`{{ index .metadata.annotations "gcp-hcp/vpc-id" }}`}}'
-        path: rendered/management-cluster/{{ .Values.cluster.environment }}/{{ .Values.cluster.sector }}/{{ .Values.cluster.region }}
+              environment: integration
+              name: ''
+              projectId: '{{"{{"}} index .metadata.annotations "gcp-hcp/project-id" {{"}}"}}'
+              region: us-central1
+              sector: int-sector-2
+              vpcId: '{{"{{"}} index .metadata.annotations "gcp-hcp/vpc-id" {{"}}"}}'
+        path: rendered/management-cluster/integration/int-sector-2/us-central1
         repoURL: https://github.com/company/gcp-hcp-apps
         targetRevision: HEAD
       destination:

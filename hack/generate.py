@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 import yaml
-from utils import Config, Patch, deep_merge, get_config, load_yaml, save_yaml
+from utils import Config, Patch, deep_merge, get_config, load_yaml, run_helm_template, save_yaml
 
 
 @dataclass
@@ -161,35 +161,60 @@ def render_target(cluster_type: str, target: Target, config: Config) -> None:
     # Find components for this cluster type
     components = config.components(cluster_type)
 
-    # Merge values for all components
     merged_values: Dict[str, Any] = {}
+
+    # add cluster.{environment,sector,region} to values
+    for i, dim in enumerate(config.dimensions):
+        merged_values.setdefault("cluster", {})
+        singular_name = dim.rstrip('s')
+        merged_values["cluster"][singular_name] = target.path_parts[i]
+
+    # Merge values for all components
     for component_name in sorted(components):
         component_values = merge_component_values(
             config, cluster_type, component_name, target
         )
         merged_values = deep_merge(merged_values, component_values)
 
-    # Create temporary values file for helm template
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".yaml", delete=False
-    ) as temp_values:
-        temp_values_path = temp_values.name
-        save_yaml(merged_values, Path(temp_values_path))
+    # Create temporary directory for double helm templating
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_dir_path = Path(temp_dir)
+
+        # Write values.yaml in temp directory
+        temp_values_path = temp_dir_path / "values.yaml"
+        save_yaml(merged_values, temp_values_path)
 
         try:
-            # Run helm template directly on the chart with custom values
-            result = subprocess.run(
-                [
-                    "helm",
-                    "template",
-                    f"{cluster_type}-apps",
-                    "argocd-apps",
-                    "--values",
-                    temp_values_path,
-                ],
-                capture_output=True,
-                text=True,
-                check=True,
+            # First helm template run
+            first_result = run_helm_template(
+                f"{cluster_type}-apps",
+                "argocd-apps",
+                str(temp_values_path)
+            )
+
+            # Create temporary helm chart structure
+            templates_dir = temp_dir_path / "templates"
+            templates_dir.mkdir()
+
+            # Write Chart.yaml for temporary chart
+            temp_chart_yaml = {
+                "apiVersion": "v2",
+                "name": "temp-chart",
+                "description": "Temporary chart for double templating",
+                "type": "application",
+                "version": "0.1.0",
+            }
+            save_yaml(temp_chart_yaml, temp_dir_path / "Chart.yaml")
+
+            # Write first result as templates/apps.yaml
+            with open(templates_dir / "apps.yaml", "w") as f:
+                f.write(first_result.stdout)
+
+            # Second helm template run against our temporary chart
+            result = run_helm_template(
+                f"{cluster_type}-apps-final",
+                str(temp_dir_path),
+                str(temp_values_path)
             )
 
             # Parse all YAML documents and save each resource to its own file

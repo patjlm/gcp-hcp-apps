@@ -3,6 +3,7 @@
 Shared utilities for the gcp-hcp-apps project.
 """
 
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Tuple
@@ -72,6 +73,34 @@ def save_yaml(data: Dict[str, Any], file_path: Path, width: int = 1000) -> None:
     file_path.parent.mkdir(parents=True, exist_ok=True)
     with open(file_path, "w") as f:
         yaml.dump(data, f, default_flow_style=False, sort_keys=False, width=width)
+
+
+def run_helm_template(
+    release_name: str, chart_path: str, values_path: str
+) -> subprocess.CompletedProcess:
+    """Run helm template command with given parameters.
+    
+    Args:
+        release_name: Name for the Helm release
+        chart_path: Path to the Helm chart
+        values_path: Path to the values file
+        
+    Returns:
+        CompletedProcess result from subprocess.run
+    """
+    return subprocess.run(
+        [
+            "helm",
+            "template",
+            release_name,
+            chart_path,
+            "--values",
+            values_path,
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
 
 
 def _walk_dimensions(
