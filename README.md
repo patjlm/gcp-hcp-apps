@@ -353,14 +353,8 @@ The fleet configuration supports promotion rules, though automated promotion is 
 ### CI/CD Validation
 
 ```bash
-# Ensure generation is current
-make generate
-if git diff --exit-code rendered/; then
-  echo "✓ Generated files are current"
-else
-  echo "✗ Generated files are stale. Run 'make generate'"
-  exit 1
-fi
+# Ensure generation is current and valid
+make check
 ```
 
 ## Generator Details
@@ -384,7 +378,7 @@ The Python generator (`hack/generate.py`):
 
 ## Testing
 
-Comprehensive test suite covers:
+Comprehensive scripts test suite covers:
 
 - Target discovery from fleet configuration
 - Value merging logic
@@ -430,3 +424,8 @@ This system handles both configuration changes and structural evolution:
 - **Modifying deployment patterns**: Generator ensures consistency across all dimensions
 
 The source-to-target pattern eliminates configuration drift by regenerating complete manifests rather than applying incremental patches.
+
+## Documentation
+
+- **[WALKTHROUGH.md](./WALKTHROUGH.md)**: Comprehensive presentation guide covering enterprise deployment challenges, solution architecture, and detailed examples - ideal for management and team onboarding
+- **[BOOTSTRAP-ARCHITECTURE.md](./BOOTSTRAP-ARCHITECTURE.md)**: Bootstrap architecture and deployment flow details
