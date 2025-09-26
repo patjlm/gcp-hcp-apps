@@ -15,64 +15,97 @@ This repository implements a **source-to-target generation pattern** where:
 
 ```mermaid
 graph TD
-    A[ApplicationSet] --> B[Cluster Generator]
-    B --> C["Match cluster-type: management-cluster"]
-    C --> D[Generate Application per cluster]
-    D --> E["Target: rendered/management-cluster/env/sector/region"]
-    E --> F[Inject cluster values via helm.valuesObject]
-    F --> G[ArgoCD Application created on target cluster]
-    G --> H[ArgoCD fetches rendered Helm chart]
-    H --> I[Helm processes cluster values]
-    I --> J[Individual Application CRs deployed]
-    J --> K[Each app targets its own source repo/chart]
-
-    subgraph "Cluster Metadata"
-        L[cluster.name]
-        M[cluster.region]
-        N[cluster.projectId]
-        O[cluster.vpcId]
+    subgraph RootApplicationSet ["Root ApplicationSet"]
+        subgraph Generator [Cluster Generator]
+          C["Match cluster-type: management-cluster"]
+          C --> D[Generate Application per cluster]
+        end
+        subgraph Target [Target]
+          Rendered["rendered/management-cluster/env/sector/region"]
+        end
+        Generator --> Target
+        subgraph Inject [Inject values]
+          InjectedValues["cluster.name<br>cluster.region<br>cluster.projectId<br>cluster.vpcId"]
+        end
+        Rendered --> Inject
     end
 
-    F --> L
-    F --> M
-    F --> N
-    F --> O
+    subgraph ClusterApplication ["Generated Application"]
+      H[ArgoCD fetches rendered Helm chart] --> I[Helm processes cluster values]
+    end
+
+    RootApplicationSet --> ClusterApplication
+
+    subgraph ComponentApplicationA ["Rendered Application A"]
+      J[Individual Application A CRs deployed]
+      J --> K[Component A targets its own source repo/chart]
+    end
+    I --> ComponentApplicationA
+
+    subgraph ComponentApplicationB ["Rendered Application B"]
+      L[Individual Application B CRs deployed]
+      L --> M[Component B targets its own source repo/chart]
+    end
+    I --> ComponentApplicationB
 ```
 
 ### Config to Rendered Generation
 
 ```mermaid
 graph TD
-    A[config/config.yaml] --> B[Generator discovers dimensions]
-    B --> C["environment × sector × region matrix"]
-
-    D[config/management-cluster/app/values.yaml] --> E[Base application config]
-    F[config/management-cluster/app/production/override.yaml] --> G[Environment overrides]
-    P[config/management-cluster/app/production/patch-*.yaml] --> Q[Temporary patches]
-    H[config/management-cluster/defaults.yaml] --> I[Default ArgoCD settings]
-
-    J[Generator merges values] --> K[Deep merge precedence]
-    K --> L["defaults → base → overrides → patches"]
-
-    E --> J
-    G --> J
-    I --> J
-    C --> J
-
-    J --> M[Create temporary Helm chart]
-    M --> N["Run 'helm template'"]
-    N --> O[Split output by Application name]
-    O --> P["rendered/cluster-type/env/sector/region/templates/app.yaml"]
-
-    subgraph "Value Merging Example"
-        Q["prometheus base: v77.9.1"]
-        R["production override: v77.8.0"]
-        S["Final: v77.8.0 in prod"]
+    subgraph Config ["Config"]
+      C["environment × sector × region matrix"]
     end
 
-    K --> Q
-    K --> R
-    K --> S
+    subgraph ConfigInputs ["Configuration Sources"]
+      Sources["config/cluster-type/defaults.yaml<br>config/cluster-type/app/values.yaml<br>config/cluster-type/app/production/override.yaml<br>config/cluster-type/app/production/patch-*.yaml"]
+    end
+
+    subgraph ValueMerging ["Value Merging Process"]
+      subgraph K[Merge precedence]
+        Defaults["Cluster-type defaults"] --> Base["Component base"]
+
+        subgraph Environment
+          OverrideEnvironment["overrides → patches"]
+        end
+        Base --> Environment
+
+        subgraph Sector
+          OverrideSector["overrides → patches"]
+        end
+        Environment --> Sector
+
+        subgraph Region
+          OverrideRegion["overrides → patches"]
+        end
+        Sector --> Region
+      end
+
+      subgraph Example["Value Merging Example"]
+          ExampleConfig["prometheus base: v77.9.1<br>production override: v77.8.0"]
+          ExampleConfig --> ExampleResult["prometheus v77.8.0 in prod"]
+      end
+
+      K --> Example
+    end
+
+    subgraph HelmProcessing ["Helm Template Processing"]
+      subgraph TempHelmChart["Temporary Helm Chart"]
+        Processing["'helm template'"]
+      end
+    end
+
+    subgraph Rendered["Rendered output"]
+      subgraph EachComponent["Each component"]
+        R["rendered/cluster-type/env/sector/region/templates/app.yaml"]
+      end
+    end
+    
+    Config --> ValueMerging
+    ConfigInputs --> ValueMerging
+    ValueMerging --> HelmProcessing
+    HelmProcessing --> Rendered
+
 ```
 
 ### Key Benefits
