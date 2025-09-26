@@ -246,18 +246,18 @@ EOF
 
 ### Patch System
 
-The patch system enables temporary changes that roll through the fleet:
+Enables temporary changes that roll through the fleet progressively:
 
 #### File Types
-- **`values.yaml`**: Base application configuration (permanent)
-- **`override.yaml`**: Permanent dimensional overrides (permanent)
-- **`patch-NNN.yaml`**: Temporary rolling changes (temporary)
+- **`values.yaml`**: Base application configuration
+- **`override.yaml`**: Permanent dimensional overrides
+- **`patch-NNN.yaml`**: Temporary rolling changes
 
-#### Creating Patches
+#### Creating and Promoting Patches
 
 ```bash
-# Environment-level patch
-cat > config/management-cluster/cert-manager/integration/patch-001.yaml << EOF
+# Create sector-level patch
+cat > config/management-cluster/cert-manager/integration/int-sector-1/patch-001.yaml << EOF
 metadata:
   description: "Upgrade cert-manager to v1.16.0"
 
@@ -266,34 +266,26 @@ applications:
     source:
       targetRevision: "v1.16.0"
 EOF
-
-# Region-level patch
-cat > config/management-cluster/prometheus/production/prod-canary/us-east1/patch-001.yaml << EOF
-metadata:
-  description: "Enable monitoring for canary testing"
-
-applications:
-  prometheus:
-    source:
-      helm:
-        valuesObject:
-          serviceMonitor:
-            enabled: true
-EOF
 ```
 
-#### Progressive Rollout
+Once this first patch is applied, you can promote it to the next level
 
-Patches progress through dimensions manually:
+```bash
+# Promote patch through dimensions using the promotion tool
+uv run hack/promote.py management-cluster cert-manager patch-001
+```
 
-1. **Start**: Create patch in specific region
-2. **Validate**: Test the change in that region
-3. **Expand**: Copy patch to other regions in sector
-4. **Consolidate**: Move patch to sector level, remove region patches
-5. **Promote**: Move patch to environment level
-6. **Integrate**: Merge into base `values.yaml`, remove all patches
+#### Automated Promotion Flow
 
-The system automatically detects conflicts between patches in the same dimension and warns about overlapping configuration paths.
+The `promote.py` tool handles patch progression:
+
+1. **Promotes** patches to next dimensional level (sectors minimum)
+2. **Coalesces** patches when all child dimensions are patched
+3. **Integrates** into `values.yaml` when all environments are patched
+4. **Detects gaps** and prevents promotion with missing patches
+5. **Validates** no target conflicts before promotion
+
+Includes conflict detection and warns about overlapping configuration paths.
 
 ### Fleet Configuration
 
@@ -342,7 +334,7 @@ spec:
         helm:
           valuesObject:
             cluster:
-              name: "{{name}}"
+              name: "{{.name}}"
               region: "{{metadata.labels.region}}"
               projectId: "{{metadata.labels.projectId}}"
 ```

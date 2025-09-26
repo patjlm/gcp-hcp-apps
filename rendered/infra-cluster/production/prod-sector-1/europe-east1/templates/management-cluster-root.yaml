@@ -22,16 +22,23 @@ spec:
       labels:
         cluster: '{{.name}}'
         cluster-type: management-cluster
-        environment: '{{ .values.environment }}'
-        region: '{{ .values.region }}'
-        sector: '{{ .values.sector }}'
-      name: mgmt-apps-{{name}}
+        environment: '{{ .Values.cluster.environment }}'
+        region: '{{ .Values.cluster.region }}'
+        sector: '{{ .Values.cluster.sector }}'
+      name: mgmt-apps-{{.name}}
     spec:
       project: default
       source:
         helm:
-          values: "clusters:\n  name: {{ .name }}\n  region: {{ .values.region }}\n  environment: {{ .values.environment }}\n  sector: {{ .values.sector }}\n  project_id: '{{ index .metadata.annotations \"gcp-hcp/project-id\" }}'\n"
-        path: rendered/management-cluster/{{ .values.environment }}/{{ .values.sector }}/{{ .values.region }}
+          valuesObject:
+            cluster:
+              environment: '{{ .Values.cluster.environment }}'
+              name: '{{ .name }}'
+              projectId: '{{`{{ index .metadata.annotations "gcp-hcp/project-id" }}`}}'
+              region: '{{ .Values.cluster.region }}'
+              sector: '{{ .Values.cluster.sector }}'
+              vpcId: '{{`{{ index .metadata.annotations "gcp-hcp/vpc-id" }}`}}'
+        path: rendered/management-cluster/{{ .Values.cluster.environment }}/{{ .Values.cluster.sector }}/{{ .Values.cluster.region }}
         repoURL: https://github.com/company/gcp-hcp-apps
         targetRevision: HEAD
       destination:

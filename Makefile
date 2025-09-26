@@ -10,6 +10,10 @@ test:
 
 # Check that generated files are current (for CI/CD)
 check: generate
+	@echo "Validating generated Helm charts..."
+	@find rendered/ -name "Chart.yaml" -exec dirname {} \; | xargs -I {} helm lint {} --quiet --set cluster.environment=test-env --set cluster.sector=test-sector --set cluster.region=test-region --set cluster.name=test-cluster --set cluster.projectId=test-project --set cluster.vpcId=test-vpc --set name=test-cluster --set server=https://test-server --set metadata.annotations.'gcp-hcp/project-id'=test-project --set metadata.annotations.'gcp-hcp/vpc-id'=test-vpc
+	@echo "✓ All generated charts are valid"
+
 	@if git diff --exit-code rendered/; then \
 		echo "✓ Generated files are current"; \
 	else \

@@ -53,43 +53,35 @@ This is the **gcp-hcp-apps** repository - A GitOps fleet management system for t
 
 ## Common Commands
 
-### Fleet Generation
+### Fleet Update and Generation
 
 ```bash
+# Modify configuration
+# modify application base values, will apply everywhere (if not overrident/patched)
+vim config/management-cluster/prometheus/values.yaml 
+# override some settings at any dimension. This applies to all targets "below" that dimension
+vim config/management-cluster/prometheus/<environment>[/<sector>[/<region>]]/override.yaml 
+# patch some settings at any dimension. This applies to all targets "below" that dimension.
+# Patches are meant to be promoted progressively though all the system dimensions and end up being merged back into values.yaml
+vim config/management-cluster/prometheus/<environment>[/<sector>[/<region>]]/patch-PATCHID.yaml 
+
+# Promote patches through dimensions
+# copies the patch to the next dimension to be updated
+uv run hack/promote.py management-cluster cert-manager patch-001
+
 # Generate all ArgoCD applications
 make generate
+# uv run hack/generate.py
 
-# Run comprehensive test suite
-make test
+# Validate changes
+git diff rendered/
 
 # Check that generated files are current (CI/CD)
 make check
 
-# Manual generation
-uv run hack/generate.py
-
-# Manual testing
-uv run hack/test_generate.py -v
-```
-
-### Development Workflow
-
-```bash
-# 1. Modify configuration
-vim config/management-cluster/prometheus/values.yaml
-
-# 2. Generate updated manifests
-make generate
-
-# 3. Validate changes
-git diff rendered/
-
-# 4. Run tests
-make test
-
-# 5. Commit both source and generated changes
+# Commit both source and generated changes
 git add config/ rendered/
-git commit -m "Update prometheus configuration"
+git commit -m "Update cert-manager configuration"
 ```
 
 ### Repository Validation
@@ -229,20 +221,14 @@ For each dimensional level, the generator applies:
 # Phase 1: Start in one region
 config/management-cluster/app/integration/int-sector-1/us-central1/patch-001.yaml
 
-# Phase 2: Expand within sector (manual)
-config/management-cluster/app/integration/int-sector-1/europe-west1/patch-001.yaml
+# Phase 2: Promote through dimensions using the promotion tool
+uv run hack/promote.py management-cluster app patch-001
 
-# Phase 3: Consolidate to sector level (manual)
-mv patch to: config/management-cluster/app/integration/int-sector-1/patch-001.yaml
-rm region-level patches
-
-# Phase 4: Expand to environment level (manual)
-mv patch to: config/management-cluster/app/integration/patch-001.yaml
-rm sector-level patches
-
-# Phase 5: Final integration (manual)
-merge patch content into base values.yaml
-rm all patch files
+# The promote.py tool automatically:
+# - Promotes to next dimensional level (sectors minimum)
+# - Coalesces patches when all children are patched
+# - Integrates into values.yaml when all environments are patched
+# - Validates no gaps or conflicts exist
 ```
 
 #### Patch Lifecycle Management

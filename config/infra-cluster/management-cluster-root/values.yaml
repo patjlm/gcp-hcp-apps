@@ -13,27 +13,28 @@ applicationsets:
 
     template:
       metadata:
-        name: "mgmt-apps-{{name}}"
+        name: "mgmt-apps-{{.name}}"
         labels:
           cluster: "{{.name}}"
           cluster-type: management-cluster
-          environment: "{{ .values.environment }}"
-          sector: "{{ .values.sector }}"
-          region: "{{ .values.region }}"
+          environment: "{{ .Values.cluster.environment }}"
+          sector: "{{ .Values.cluster.sector }}"
+          region: "{{ .Values.cluster.region }}"
       spec:
         project: default
         source:
           repoURL: https://github.com/company/gcp-hcp-apps
           targetRevision: HEAD
-          path: "rendered/management-cluster/{{ .values.environment }}/{{ .values.sector }}/{{ .values.region }}"
+          path: "rendered/management-cluster/{{ .Values.cluster.environment }}/{{ .Values.cluster.sector }}/{{ .Values.cluster.region }}"
           helm:
-            values: |
-              clusters:
-                name: {{ .name }}
-                region: {{ .values.region }}
-                environment: {{ .values.environment }}
-                sector: {{ .values.sector }}
-                project_id: '{{ index .metadata.annotations "gcp-hcp/project-id" }}'
+            valuesObject:
+              cluster:
+                name: "{{ .name }}"
+                region: "{{ .Values.cluster.region }}"
+                environment: "{{ .Values.cluster.environment }}"
+                sector: "{{ .Values.cluster.sector }}"
+                projectId: "{{`{{ index .metadata.annotations \"gcp-hcp/project-id\" }}`}}"
+                vpcId: "{{`{{ index .metadata.annotations \"gcp-hcp/vpc-id\" }}`}}"
         destination:
           server: "{{.server}}"
           namespace: argocd

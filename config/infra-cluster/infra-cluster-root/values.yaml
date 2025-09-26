@@ -13,24 +13,21 @@ applicationsets:
 
     template:
       metadata:
-        name: "infra-apps-{{name}}"
+        name: "infra-apps-{{.name}}"
         labels:
-          cluster: "{{name}}"
+          cluster: "{{.name}}"
           cluster-type: infra-cluster
-          environment: "{{. values.environment }}"
-          sector: "{{ .values.sector }}"
-          region: "{{ .values.region }}"
+          environment: "{{ .Values.cluster.environment }}"
+          sector: "{{ .Values.cluster.sector }}"
+          region: "{{ .Values.cluster.region }}"
       spec:
         project: default
         source:
           repoURL: https://github.com/company/gcp-hcp-apps
           targetRevision: HEAD
-          path: "rendered/infra-cluster/{{values.environment}}/{{values.sector}}/{{values.region}}"
-        # inject cluster label values into helm values
-        valkues:
-          cluster: "{{cluster.;name}}"
+          path: "rendered/infra-cluster/{{ .Values.cluster.environment }}/{{ .Values.cluster.sector }}/{{ .Values.cluster.region }}"
         destination:
-          server: "{{server}}"
+          server: "{{.server}}"
           namespace: argocd
         syncPolicy:
           automated:

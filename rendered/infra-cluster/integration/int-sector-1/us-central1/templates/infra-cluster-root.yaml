@@ -20,21 +20,21 @@ spec:
   template:
     metadata:
       labels:
-        cluster: '{{name}}'
+        cluster: '{{.name}}'
         cluster-type: infra-cluster
-        environment: '{{. values.environment }}'
-        region: '{{ .values.region }}'
-        sector: '{{ .values.sector }}'
-      name: infra-apps-{{name}}
+        environment: '{{ .Values.cluster.environment }}'
+        region: '{{ .Values.cluster.region }}'
+        sector: '{{ .Values.cluster.sector }}'
+      name: infra-apps-{{.name}}
     spec:
       project: default
       source:
-        path: rendered/infra-cluster/{{values.environment}}/{{values.sector}}/{{values.region}}
+        path: rendered/infra-cluster/{{ .Values.cluster.environment }}/{{ .Values.cluster.sector }}/{{ .Values.cluster.region }}
         repoURL: https://github.com/company/gcp-hcp-apps
         targetRevision: HEAD
       destination:
         namespace: argocd
-        server: '{{server}}'
+        server: '{{.server}}'
       syncPolicy:
         automated:
           prune: true
